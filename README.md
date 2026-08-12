@@ -55,6 +55,19 @@ usage records are append-only audit objects. `MedicalCaseState` declares merge
 reducers for values emitted concurrently, while `MedicalCaseSnapshot` performs
 whole-state validation before checkpointing or persistence.
 
+## Run the first investigation workflow
+
+The bundled synthetic anemia-like case runs fully offline:
+
+```powershell
+python -m medboard.cli --case data/demo_cases/anemia.json
+```
+
+The supervisor creates a plan and dispatches History, Symptom, Laboratory, and
+Medication agents concurrently. The CLI prints the structured execution trace,
+evidence/message totals, approximate demo token usage, and zero demo cost. Add
+`--json` to inspect the complete validated state.
+
 ## Safety
 
 Only synthetic, public benchmark, or de-identified cases should be used during

@@ -1,0 +1,24 @@
+{
+  "case_id": "CASE-ANEMIA-001",
+  "synthetic": true,
+  "age": 29,
+  "biological_sex": "female",
+  "chief_complaint": "Progressive fatigue and shortness of breath on exertion",
+  "narrative": "Synthetic teaching case. Symptoms have gradually worsened over eight months.",
+  "symptoms": [
+    "fatigue",
+    "shortness of breath",
+    "dizziness"
+  ],
+  "history": [
+    "Heavy menstrual bleeding for eight months"
+  ],
+  "medications": [],
+  "allergies": [],
+  "laboratory_values": [
+    {"name": "hemoglobin", "value": 8.7, "unit": "g/dL"},
+    {"name": "MCV", "value": 70, "unit": "fL"},
+    {"name": "ferritin", "value": 6, "unit": "ng/mL"},
+    {"name": "WBC", "value": 7200, "unit": "/uL"}
+  ]
+}
