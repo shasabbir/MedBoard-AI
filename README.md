@@ -91,6 +91,23 @@ reasoning, routing explanations, disagreements, RAG chunks and public sources,
 messages, execution trace, token/cost totals, persisted case history, human
 review controls, and the approval-gated final report.
 
+## Reproducible evaluation
+
+Run the deterministic offline benchmark and controlled ablations with:
+
+```powershell
+python -m medboard.evaluation --output evaluation/results
+```
+
+The suite evaluates labeled synthetic cases independently for top-1/3/5
+differential recall, specialist-routing precision and recall, red-flag recall
+and false alarms, triage accuracy, missing-information recall, unsupported
+claims, and resource usage. It also measures RAG Recall@K, mean reciprocal rank,
+and citation-metadata completeness. Results are written as both JSON and
+Markdown. The single-pass configuration is explicitly an offline proxy rather
+than a production LLM baseline; these metrics test software behavior and do not
+establish clinical efficacy.
+
 ## Local evidence retrieval
 
 Curated educational summaries in `data/knowledge` include explicit source

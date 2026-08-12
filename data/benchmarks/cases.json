@@ -1,0 +1,59 @@
+[
+  {
+    "benchmark_id": "BENCH-ANEMIA-001",
+    "case_file": "data/demo_cases/anemia.json",
+    "expected_diagnoses": ["iron deficiency anemia"],
+    "expected_specialists": ["cardiology"],
+    "expected_red_flag": true,
+    "expected_triage": "urgent",
+    "expected_missing_information": [
+      "reticulocyte count",
+      "clinician assessment of blood loss"
+    ]
+  },
+  {
+    "benchmark_id": "BENCH-NEURO-001",
+    "case_file": "data/demo_cases/neurological.json",
+    "expected_diagnoses": ["acute neurological process"],
+    "expected_specialists": ["neurology"],
+    "expected_red_flag": true,
+    "expected_triage": "emergency",
+    "expected_missing_information": [
+      "neurological examination",
+      "exact time last known well"
+    ]
+  },
+  {
+    "benchmark_id": "BENCH-INFECTIOUS-001",
+    "case_file": "data/demo_cases/infectious.json",
+    "expected_diagnoses": ["infectious process"],
+    "expected_specialists": ["infectious_disease"],
+    "expected_red_flag": true,
+    "expected_triage": "priority",
+    "expected_missing_information": [
+      "temperature trend",
+      "exposure history"
+    ]
+  },
+  {
+    "benchmark_id": "BENCH-CARDIAC-001",
+    "case_file": "data/demo_cases/cardiac.json",
+    "expected_diagnoses": ["acute coronary syndrome"],
+    "expected_specialists": ["cardiology"],
+    "expected_red_flag": true,
+    "expected_triage": "emergency",
+    "expected_missing_information": ["ECG", "troponin", "blood pressure"]
+  },
+  {
+    "benchmark_id": "BENCH-ROUTINE-001",
+    "case_file": "data/demo_cases/routine.json",
+    "expected_diagnoses": ["other systemic or metabolic explanation"],
+    "expected_specialists": [],
+    "expected_red_flag": false,
+    "expected_triage": "routine",
+    "expected_missing_information": [
+      "physical examination",
+      "additional targeted testing"
+    ]
+  }
+]

@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 medboard = "medboard.cli:main"
+medboard-evaluate = "medboard.evaluation.__main__:main"
 
 [project.optional-dependencies]
 workflow = [

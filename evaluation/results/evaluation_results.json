@@ -1,0 +1,648 @@
+{
+  "benchmark_version": "1.0",
+  "deterministic_demo": true,
+  "configurations": [
+    {
+      "configuration": "single_pass_proxy",
+      "description": "One deterministic pass over raw case fields without agents or evidence IDs.",
+      "metrics": {
+        "case_count": 5,
+        "top_1_recall": 0.8,
+        "top_3_recall": 1.0,
+        "top_5_recall": 1.0,
+        "routing_precision": 1.0,
+        "routing_recall": 0.0,
+        "red_flag_recall": 0.0,
+        "red_flag_false_alarms": 0,
+        "triage_accuracy": 0.2,
+        "missing_information_recall": 1.0,
+        "unsupported_claim_rate": 1.0,
+        "mean_tokens": 148.4,
+        "mean_agent_calls": 1.0,
+        "mean_revisions": 0.0
+      },
+      "cases": [
+        {
+          "benchmark_id": "BENCH-ANEMIA-001",
+          "expected_diagnoses": [
+            "iron deficiency anemia"
+          ],
+          "diagnoses": [
+            "Iron deficiency anemia pattern",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "iron deficiency anemia": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [],
+          "expected_red_flag": true,
+          "red_flag_detected": false,
+          "expected_triage": "urgent",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "matched_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "unsupported_claims": 2,
+          "total_claims": 2,
+          "tokens": 213,
+          "agent_calls": 1,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-NEURO-001",
+          "expected_diagnoses": [
+            "acute neurological process"
+          ],
+          "diagnoses": [
+            "Acute neurological process"
+          ],
+          "diagnosis_ranks": {
+            "acute neurological process": 1
+          },
+          "expected_specialists": [
+            "neurology"
+          ],
+          "selected_specialists": [],
+          "expected_red_flag": true,
+          "red_flag_detected": false,
+          "expected_triage": "emergency",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "matched_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "unsupported_claims": 1,
+          "total_claims": 1,
+          "tokens": 121,
+          "agent_calls": 1,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-INFECTIOUS-001",
+          "expected_diagnoses": [
+            "infectious process"
+          ],
+          "diagnoses": [
+            "Pulmonary or other cardiorespiratory process",
+            "Infectious process"
+          ],
+          "diagnosis_ranks": {
+            "infectious process": 2
+          },
+          "expected_specialists": [
+            "infectious_disease"
+          ],
+          "selected_specialists": [],
+          "expected_red_flag": true,
+          "red_flag_detected": false,
+          "expected_triage": "priority",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "matched_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "unsupported_claims": 2,
+          "total_claims": 2,
+          "tokens": 151,
+          "agent_calls": 1,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-CARDIAC-001",
+          "expected_diagnoses": [
+            "acute coronary syndrome"
+          ],
+          "diagnoses": [
+            "Acute coronary syndrome consideration",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "acute coronary syndrome": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [],
+          "expected_red_flag": true,
+          "red_flag_detected": false,
+          "expected_triage": "emergency",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "matched_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "unsupported_claims": 2,
+          "total_claims": 2,
+          "tokens": 143,
+          "agent_calls": 1,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-ROUTINE-001",
+          "expected_diagnoses": [
+            "other systemic or metabolic explanation"
+          ],
+          "diagnoses": [
+            "Other systemic or metabolic explanation"
+          ],
+          "diagnosis_ranks": {
+            "other systemic or metabolic explanation": 1
+          },
+          "expected_specialists": [],
+          "selected_specialists": [],
+          "expected_red_flag": false,
+          "red_flag_detected": false,
+          "expected_triage": "routine",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "matched_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "unsupported_claims": 1,
+          "total_claims": 1,
+          "tokens": 114,
+          "agent_calls": 1,
+          "revisions": 0
+        }
+      ]
+    },
+    {
+      "configuration": "multi_agent_no_critic",
+      "description": "Parallel intake, dynamic specialists, and RAG without red-team revision.",
+      "metrics": {
+        "case_count": 5,
+        "top_1_recall": 0.8,
+        "top_3_recall": 1.0,
+        "top_5_recall": 1.0,
+        "routing_precision": 1.0,
+        "routing_recall": 1.0,
+        "red_flag_recall": 1.0,
+        "red_flag_false_alarms": 0,
+        "triage_accuracy": 1.0,
+        "missing_information_recall": 1.0,
+        "unsupported_claim_rate": 0.0,
+        "mean_tokens": 2768.8,
+        "mean_agent_calls": 7.8,
+        "mean_revisions": 0.0
+      },
+      "cases": [
+        {
+          "benchmark_id": "BENCH-ANEMIA-001",
+          "expected_diagnoses": [
+            "iron deficiency anemia"
+          ],
+          "diagnoses": [
+            "Iron-deficiency anemia pattern",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "iron deficiency anemia": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [
+            "cardiology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "urgent",
+          "triage_level": "urgent",
+          "expected_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "matched_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 3041,
+          "agent_calls": 8,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-NEURO-001",
+          "expected_diagnoses": [
+            "acute neurological process"
+          ],
+          "diagnoses": [
+            "Acute neurological process",
+            "Other systemic or metabolic explanation"
+          ],
+          "diagnosis_ranks": {
+            "acute neurological process": 1
+          },
+          "expected_specialists": [
+            "neurology"
+          ],
+          "selected_specialists": [
+            "neurology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "emergency",
+          "triage_level": "emergency",
+          "expected_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "matched_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 2902,
+          "agent_calls": 8,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-INFECTIOUS-001",
+          "expected_diagnoses": [
+            "infectious process"
+          ],
+          "diagnoses": [
+            "Pulmonary or other cardiorespiratory process",
+            "Infectious process"
+          ],
+          "diagnosis_ranks": {
+            "infectious process": 2
+          },
+          "expected_specialists": [
+            "infectious_disease"
+          ],
+          "selected_specialists": [
+            "infectious_disease"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "priority",
+          "triage_level": "priority",
+          "expected_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "matched_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 2862,
+          "agent_calls": 8,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-CARDIAC-001",
+          "expected_diagnoses": [
+            "acute coronary syndrome"
+          ],
+          "diagnoses": [
+            "Acute coronary syndrome consideration",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "acute coronary syndrome": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [
+            "cardiology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "emergency",
+          "triage_level": "emergency",
+          "expected_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "matched_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 2919,
+          "agent_calls": 8,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-ROUTINE-001",
+          "expected_diagnoses": [
+            "other systemic or metabolic explanation"
+          ],
+          "diagnoses": [
+            "Other systemic or metabolic explanation",
+            "Medication, exposure, or contextual explanation"
+          ],
+          "diagnosis_ranks": {
+            "other systemic or metabolic explanation": 1
+          },
+          "expected_specialists": [],
+          "selected_specialists": [],
+          "expected_red_flag": false,
+          "red_flag_detected": false,
+          "expected_triage": "routine",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "matched_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 2120,
+          "agent_calls": 7,
+          "revisions": 0
+        }
+      ]
+    },
+    {
+      "configuration": "full_medboard",
+      "description": "Multi-agent collaboration, dynamic specialists, RAG, critic, and risk triage.",
+      "metrics": {
+        "case_count": 5,
+        "top_1_recall": 0.8,
+        "top_3_recall": 1.0,
+        "top_5_recall": 1.0,
+        "routing_precision": 1.0,
+        "routing_recall": 1.0,
+        "red_flag_recall": 1.0,
+        "red_flag_false_alarms": 0,
+        "triage_accuracy": 1.0,
+        "missing_information_recall": 1.0,
+        "unsupported_claim_rate": 0.0,
+        "mean_tokens": 3000.6,
+        "mean_agent_calls": 10.2,
+        "mean_revisions": 0.4
+      },
+      "cases": [
+        {
+          "benchmark_id": "BENCH-ANEMIA-001",
+          "expected_diagnoses": [
+            "iron deficiency anemia"
+          ],
+          "diagnoses": [
+            "Iron-deficiency anemia pattern",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "iron deficiency anemia": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [
+            "cardiology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "urgent",
+          "triage_level": "urgent",
+          "expected_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "matched_missing_information": [
+            "reticulocyte count",
+            "clinician assessment of blood loss"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 3529,
+          "agent_calls": 12,
+          "revisions": 2
+        },
+        {
+          "benchmark_id": "BENCH-NEURO-001",
+          "expected_diagnoses": [
+            "acute neurological process"
+          ],
+          "diagnoses": [
+            "Acute neurological process",
+            "Other systemic or metabolic explanation"
+          ],
+          "diagnosis_ranks": {
+            "acute neurological process": 1
+          },
+          "expected_specialists": [
+            "neurology"
+          ],
+          "selected_specialists": [
+            "neurology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "emergency",
+          "triage_level": "emergency",
+          "expected_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "matched_missing_information": [
+            "neurological examination",
+            "exact time last known well"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 3076,
+          "agent_calls": 10,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-INFECTIOUS-001",
+          "expected_diagnoses": [
+            "infectious process"
+          ],
+          "diagnoses": [
+            "Pulmonary or other cardiorespiratory process",
+            "Infectious process"
+          ],
+          "diagnosis_ranks": {
+            "infectious process": 2
+          },
+          "expected_specialists": [
+            "infectious_disease"
+          ],
+          "selected_specialists": [
+            "infectious_disease"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "priority",
+          "triage_level": "priority",
+          "expected_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "matched_missing_information": [
+            "temperature trend",
+            "exposure history"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 3036,
+          "agent_calls": 10,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-CARDIAC-001",
+          "expected_diagnoses": [
+            "acute coronary syndrome"
+          ],
+          "diagnoses": [
+            "Acute coronary syndrome consideration",
+            "Pulmonary or other cardiorespiratory process"
+          ],
+          "diagnosis_ranks": {
+            "acute coronary syndrome": 1
+          },
+          "expected_specialists": [
+            "cardiology"
+          ],
+          "selected_specialists": [
+            "cardiology"
+          ],
+          "expected_red_flag": true,
+          "red_flag_detected": true,
+          "expected_triage": "emergency",
+          "triage_level": "emergency",
+          "expected_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "matched_missing_information": [
+            "ECG",
+            "troponin",
+            "blood pressure"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 3091,
+          "agent_calls": 10,
+          "revisions": 0
+        },
+        {
+          "benchmark_id": "BENCH-ROUTINE-001",
+          "expected_diagnoses": [
+            "other systemic or metabolic explanation"
+          ],
+          "diagnoses": [
+            "Other systemic or metabolic explanation",
+            "Medication, exposure, or contextual explanation"
+          ],
+          "diagnosis_ranks": {
+            "other systemic or metabolic explanation": 1
+          },
+          "expected_specialists": [],
+          "selected_specialists": [],
+          "expected_red_flag": false,
+          "red_flag_detected": false,
+          "expected_triage": "routine",
+          "triage_level": "routine",
+          "expected_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "matched_missing_information": [
+            "physical examination",
+            "additional targeted testing"
+          ],
+          "unsupported_claims": 0,
+          "total_claims": 2,
+          "tokens": 2271,
+          "agent_calls": 9,
+          "revisions": 0
+        }
+      ]
+    }
+  ],
+  "rag": {
+    "question_count": 4,
+    "recall_at_k": 1.0,
+    "mean_reciprocal_rank": 1.0,
+    "citation_completeness": 1.0,
+    "questions": [
+      {
+        "question_id": "Q-RAG-BENCH-ANEMIA",
+        "expected_document": "Anaemia and iron deficiency educational summary",
+        "retrieved_documents": [
+          "Anaemia and iron deficiency educational summary",
+          "Stroke fact sheet educational summary",
+          "Anaemia and iron deficiency educational summary"
+        ],
+        "relevant_rank": 1,
+        "citations_complete": true
+      },
+      {
+        "question_id": "Q-RAG-BENCH-CARDIAC",
+        "expected_document": "Chest pain evaluation guideline highlights",
+        "retrieved_documents": [
+          "Chest pain evaluation guideline highlights",
+          "Pneumonia overview educational summary",
+          "Anaemia and iron deficiency educational summary"
+        ],
+        "relevant_rank": 1,
+        "citations_complete": true
+      },
+      {
+        "question_id": "Q-RAG-BENCH-INFECTIOUS",
+        "expected_document": "Pneumonia overview educational summary",
+        "retrieved_documents": [
+          "Pneumonia overview educational summary",
+          "Pneumonia overview educational summary",
+          "Chest pain evaluation guideline highlights"
+        ],
+        "relevant_rank": 1,
+        "citations_complete": true
+      },
+      {
+        "question_id": "Q-RAG-BENCH-STROKE",
+        "expected_document": "Stroke fact sheet educational summary",
+        "retrieved_documents": [
+          "Stroke fact sheet educational summary",
+          "Chest pain evaluation guideline highlights",
+          "Pneumonia overview educational summary"
+        ],
+        "relevant_rank": 1,
+        "citations_complete": true
+      }
+    ]
+  }
+}

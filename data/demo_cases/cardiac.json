@@ -1,0 +1,13 @@
+{
+  "case_id": "CASE-CARDIAC-001",
+  "synthetic": true,
+  "age": 58,
+  "biological_sex": "male",
+  "chief_complaint": "Sudden central chest pain with shortness of breath",
+  "narrative": "Synthetic teaching case with symptoms beginning 30 minutes ago.",
+  "symptoms": ["chest pain", "shortness of breath", "palpitations"],
+  "history": ["Hypertension", "Current smoker"],
+  "medications": ["Medication list unavailable"],
+  "allergies": [],
+  "laboratory_values": []
+}

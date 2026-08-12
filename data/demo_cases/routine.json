@@ -1,0 +1,13 @@
+{
+  "case_id": "CASE-ROUTINE-001",
+  "synthetic": true,
+  "age": 36,
+  "biological_sex": "female",
+  "chief_complaint": "Nonspecific tiredness after a change in work schedule",
+  "narrative": "Synthetic teaching case without acute symptoms or supplied red flags.",
+  "symptoms": ["tiredness"],
+  "history": ["Recent shift-work schedule change"],
+  "medications": [],
+  "allergies": [],
+  "laboratory_values": []
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "question_id": "Q-RAG-BENCH-ANEMIA",
+    "question": "low ferritin microcytic anemia iron deficiency evaluation",
+    "expected_document": "Anaemia and iron deficiency educational summary",
+    "top_k": 3
+  },
+  {
+    "question_id": "Q-RAG-BENCH-CARDIAC",
+    "question": "chest pain shortness of breath ECG troponin urgent evaluation",
+    "expected_document": "Chest pain evaluation guideline highlights",
+    "top_k": 3
+  },
+  {
+    "question_id": "Q-RAG-BENCH-INFECTIOUS",
+    "question": "fever productive cough elevated white blood cells pneumonia",
+    "expected_document": "Pneumonia overview educational summary",
+    "top_k": 3
+  },
+  {
+    "question_id": "Q-RAG-BENCH-STROKE",
+    "question": "sudden unilateral weakness confusion stroke urgent assessment",
+    "expected_document": "Stroke fact sheet educational summary",
+    "top_k": 3
+  }
+]
