@@ -23,8 +23,10 @@ class RiskAgent(BaseAgent):
         self,
         provider: StructuredModelProvider,
         risk_tool: RiskRuleTool | None = None,
+        *,
+        max_retries: int = 2,
     ) -> None:
-        super().__init__(provider)
+        super().__init__(provider, max_retries=max_retries)
         self.risk_tool = risk_tool or RiskRuleTool()
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:

@@ -11,7 +11,7 @@ from medboard.graph.state import MedicalCaseSnapshot, create_initial_state, vali
 from medboard.graph.workflow import build_collaboration_workflow
 from medboard.models import MedicalCaseInput
 from medboard.observability import get_logger, log_event, setup_logging
-from medboard.providers import DemoModelProvider
+from medboard.providers import build_model_provider
 from medboard.rag.store import KnowledgeStore
 
 
@@ -37,9 +37,6 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
     setup_logging(active_settings)
     logger = get_logger(__name__)
 
-    if not active_settings.demo_mode:
-        raise RuntimeError("Live providers are not implemented; set DEMO_MODE=true")
-
     case_path = args.case or active_settings.demo_cases_directory / "anemia.json"
     case = MedicalCaseInput.model_validate_json(case_path.read_text(encoding="utf-8"))
     initial_state = create_initial_state(case)
@@ -48,9 +45,11 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
     knowledge_store = KnowledgeStore(active_settings.chroma_persist_directory)
     knowledge_store.ingest_directory(active_settings.knowledge_directory)
     graph = build_collaboration_workflow(
-        DemoModelProvider(),
+        build_model_provider(active_settings),
         knowledge_store,
         max_revisions=active_settings.max_revisions,
+        max_agent_retries=active_settings.max_agent_retries,
+        rag_top_k=active_settings.rag_top_k,
     )
     result = graph.invoke(initial_state)
     snapshot = validate_state(result)
@@ -70,7 +69,12 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
 
 
 def _print_trace(snapshot: MedicalCaseSnapshot) -> None:
-    print(f"RUN {snapshot.run_id} | MODE DEMO | CASE {snapshot.case_input.case_id}")
+    provider = snapshot.token_usage[0].provider if snapshot.token_usage else "unknown"
+    mode = "DEMO" if provider == "demo" else "LIVE LLM"
+    print(
+        f"RUN {snapshot.run_id} | MODE {mode} | CASE {snapshot.case_input.case_id} | "
+        f"PROVIDER {provider.upper()}"
+    )
     planned_agents = snapshot.supervisor_plan.initial_agents if snapshot.supervisor_plan else []
     print(f"PLAN: {', '.join(planned_agents)}")
     routed = ", ".join(snapshot.selected_specialists) or "none"

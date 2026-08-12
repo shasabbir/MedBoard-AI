@@ -118,6 +118,48 @@ def test_added_information_reruns_downstream_then_interrupts_again(tmp_path: Pat
         checkpoint.close()
 
 
+def test_complete_add_information_resume_approve_acceptance_path(
+    tmp_path: Path,
+) -> None:
+    graph, checkpoint = build_graph(tmp_path)
+    repository = CaseMemoryRepository(Database(tmp_path / "acceptance_history.db"))
+    service = WorkflowService(graph, repository)
+    try:
+        started = service.start(neurological_case(), "RUN-ACCEPTANCE")
+        assert started.interrupted
+
+        revised = service.resume(
+            "RUN-ACCEPTANCE",
+            HumanReviewCommand(
+                action="add_information",
+                reviewer="acceptance-clinician",
+                added_information={"blood_pressure": "190/110 mmHg"},
+            ),
+        )
+        assert revised.interrupted
+        assert revised.snapshot.final_report is None
+        assert any(
+            item.source == "human_review" for item in revised.snapshot.evidence
+        )
+
+        approved = service.resume(
+            "RUN-ACCEPTANCE",
+            HumanReviewCommand(
+                action="approve",
+                reviewer="acceptance-clinician",
+                feedback="Approved after reviewing the additional information.",
+            ),
+        )
+
+        assert approved.interrupted is False
+        assert approved.snapshot.final_report is not None
+        assert repository.run_status("RUN-ACCEPTANCE") == "approved"
+        assert repository.feedback_count("RUN-ACCEPTANCE") == 2
+        assert repository.load_run("RUN-ACCEPTANCE") == approved.snapshot
+    finally:
+        checkpoint.close()
+
+
 def test_requested_specialist_runs_then_returns_to_human_review(tmp_path: Path) -> None:
     graph, checkpoint = build_graph(tmp_path)
     config = {"configurable": {"thread_id": "RUN-HITL-SPECIALIST"}}

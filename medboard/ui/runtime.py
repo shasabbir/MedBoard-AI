@@ -8,7 +8,7 @@ from medboard.config import Settings, get_settings
 from medboard.graph.workflow import build_reviewable_workflow
 from medboard.memory import CaseMemoryRepository, Database, WorkflowCheckpoint
 from medboard.observability import setup_logging
-from medboard.providers import DemoModelProvider
+from medboard.providers import build_model_provider
 from medboard.rag.store import KnowledgeStore
 from medboard.workflow_service import WorkflowService
 
@@ -25,8 +25,6 @@ class AppRuntime:
 def get_runtime() -> AppRuntime:
     """Build process-wide stores and the checkpointed graph once per server."""
     settings = get_settings()
-    if not settings.demo_mode:
-        raise RuntimeError("The Streamlit workflow currently supports DEMO_MODE=true")
     settings.ensure_runtime_directories()
     setup_logging(settings)
     knowledge_store = KnowledgeStore(settings.chroma_persist_directory)
@@ -34,9 +32,11 @@ def get_runtime() -> AppRuntime:
     checkpoint = WorkflowCheckpoint(settings.workflow_checkpoint_path)
     case_memory = CaseMemoryRepository(Database(settings.database_path))
     graph = build_reviewable_workflow(
-        DemoModelProvider(),
+        build_model_provider(settings),
         knowledge_store,
         max_revisions=settings.max_revisions,
+        max_agent_retries=settings.max_agent_retries,
+        rag_top_k=settings.rag_top_k,
         checkpointer=checkpoint.saver,
     )
     return AppRuntime(

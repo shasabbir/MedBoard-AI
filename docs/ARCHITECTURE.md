@@ -36,6 +36,7 @@ records from being conflated.
 ## Observability and safety
 
 Agent execution produces append-only trace, token, error, and message records. The dashboard
-shows status, execution time, completed calls, tool calls, approximate demo tokens, cost,
+shows status, execution time, model calls, tool calls, approximate demo tokens, cost,
 logs, evidence sources, and failure details. Safety language appears before case execution and
-inside every approved report. Demo and future live providers share the graph contract.
+inside every approved report. Demo, OpenAI, and Gemini providers share the graph contract;
+live providers return the same Pydantic output types via structured-output APIs.

@@ -67,6 +67,14 @@ def render_settings(settings: Settings) -> None:
             {"Setting": "Maximum agent retries", "Value": settings.max_agent_retries},
             {"Setting": "Agent timeout (seconds)", "Value": settings.agent_timeout_seconds},
             {"Setting": "RAG top-k", "Value": settings.rag_top_k},
+            {
+                "Setting": "Input cost / 1M tokens",
+                "Value": settings.llm_input_cost_per_million,
+            },
+            {
+                "Setting": "Output cost / 1M tokens",
+                "Value": settings.llm_output_cost_per_million,
+            },
             {"Setting": "Log level", "Value": settings.log_level},
         ]
     )

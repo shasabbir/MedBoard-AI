@@ -83,3 +83,20 @@ def test_ingestion_is_idempotent(tmp_path: Path) -> None:
 
     assert second_count == first_count
     assert store.count == first_count
+
+
+def test_ephemeral_store_starts_isolated(tmp_path: Path) -> None:
+    first = KnowledgeStore(
+        tmp_path / "unused-first",
+        collection_name="ephemeral_first",
+        ephemeral=True,
+    )
+    first.ingest_directory(Path("data/knowledge"))
+    second = KnowledgeStore(
+        tmp_path / "unused-second",
+        collection_name="ephemeral_second",
+        ephemeral=True,
+    )
+
+    assert first.count > 0
+    assert second.count == 0

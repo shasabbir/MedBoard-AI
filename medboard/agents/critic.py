@@ -17,8 +17,14 @@ from medboard.providers import StructuredModelProvider
 class CriticAgent(BaseAgent):
     name = "critic"
 
-    def __init__(self, provider: StructuredModelProvider, max_revisions: int = 2) -> None:
-        super().__init__(provider)
+    def __init__(
+        self,
+        provider: StructuredModelProvider,
+        max_revisions: int = 2,
+        *,
+        max_retries: int = 2,
+    ) -> None:
+        super().__init__(provider, max_retries=max_retries)
         self.max_revisions = max_revisions
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:

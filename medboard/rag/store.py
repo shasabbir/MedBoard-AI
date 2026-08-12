@@ -21,10 +21,15 @@ class KnowledgeStore:
         *,
         collection_name: str = "medboard_knowledge",
         embedder: HashingEmbedder | None = None,
+        ephemeral: bool = False,
     ) -> None:
         persist_directory.mkdir(parents=True, exist_ok=True)
         self.embedder = embedder or HashingEmbedder()
-        self.client = chromadb.PersistentClient(path=str(persist_directory))
+        self.client = (
+            chromadb.EphemeralClient()
+            if ephemeral
+            else chromadb.PersistentClient(path=str(persist_directory))
+        )
         self.collection = self.client.get_or_create_collection(
             collection_name,
             metadata={"hnsw:space": "cosine"},

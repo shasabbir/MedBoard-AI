@@ -149,7 +149,7 @@ def _run(
     labels: list[BenchmarkCase],
     rag_questions: list[RagBenchmarkQuestion],
 ) -> EvaluationReport:
-    store = KnowledgeStore(workspace / "chroma")
+    store = KnowledgeStore(workspace / "chroma", ephemeral=True)
     store.ingest_directory(repository_root / "data/knowledge")
     provider = DemoModelProvider()
     no_critic_graph = build_collaboration_workflow(provider, store)

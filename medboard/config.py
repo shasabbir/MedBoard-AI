@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     max_agent_retries: int = Field(default=2, ge=0, le=5)
     agent_timeout_seconds: float = Field(default=60.0, gt=0, le=600)
     rag_top_k: int = Field(default=5, ge=1, le=20)
+    llm_input_cost_per_million: float = Field(default=0.0, ge=0)
+    llm_output_cost_per_million: float = Field(default=0.0, ge=0)
 
     @field_validator("app_env", "llm_provider", mode="before")
     @classmethod

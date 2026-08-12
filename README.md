@@ -86,7 +86,7 @@ reachable only after explicit human approval.
 - Python 3.11+, Pydantic, LangGraph, and Streamlit
 - SQLite for checkpoints and auditable case history
 - ChromaDB with deterministic local embeddings for offline RAG
-- OpenAI/Gemini configuration boundary plus a deterministic demo provider
+- OpenAI Responses and Gemini structured-output adapters plus a deterministic demo provider
 - Pytest, coverage, mypy, Flake8, and reproducible evaluation artifacts
 
 ## Quick start
@@ -114,14 +114,17 @@ Configuration is environment-driven; see [.env.example](.env.example).
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | OpenAI live-mode credentials/model | empty |
 | `GOOGLE_API_KEY`, `GEMINI_MODEL` | Gemini live-mode credentials/model | empty |
 | `MAX_REVISIONS` | Critic revision bound | `2` |
-| `MAX_AGENT_RETRIES` | Configured retry limit | `2` |
+| `MAX_AGENT_RETRIES` | Automatic per-agent retry limit | `2` |
 | `RAG_TOP_K` | Retrieval result limit | `5` |
+| `LLM_INPUT_COST_PER_MILLION` | Configured input-token rate for estimates | `0` |
+| `LLM_OUTPUT_COST_PER_MILLION` | Configured output-token rate for estimates | `0` |
 | `DATABASE_PATH` | Durable case-history SQLite path | `data/medboard.db` |
 | `WORKFLOW_CHECKPOINT_PATH` | LangGraph checkpoint SQLite path | `data/workflow_checkpoints.db` |
 
-Live-provider execution is intentionally not enabled in the current prototype; the provider
-configuration contract is ready, while all verified demos use the same graph through the
-offline provider.
+Live-provider execution uses the same graph and validated schemas as demo mode. Set
+`DEMO_MODE=false`, configure the selected provider's key/model, install the `providers` extra,
+and set current per-million token rates if cost estimates are required. Demo mode remains the
+recommended reproducible presentation path.
 
 ## Run and present
 
@@ -177,6 +180,7 @@ flake8 medboard tests app.py
 mypy medboard
 pytest --cov=medboard
 python -m pip check
+python scripts/acceptance.py
 ```
 
 ## Repository map
@@ -211,7 +215,6 @@ tests/                    Unit, integration, persistence, UI, and evaluation tes
 
 ## Future work
 
-- Implement and validate live OpenAI/Gemini structured providers.
 - Add externally reviewed benchmark cases, repeated trials, and clinician-led error analysis.
-- Add validated retry/timeout policies and similar-case retrieval as secondary evidence.
+- Add provider-specific timeout/cancellation testing and similar-case retrieval as secondary evidence.
 - Export clinician-approved reports and audit bundles in privacy-preserving formats.

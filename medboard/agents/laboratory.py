@@ -28,8 +28,10 @@ class LaboratoryAgent(BaseAgent):
         self,
         provider: StructuredModelProvider,
         lab_tool: LabReferenceTool | None = None,
+        *,
+        max_retries: int = 2,
     ) -> None:
-        super().__init__(provider)
+        super().__init__(provider, max_retries=max_retries)
         self.lab_tool = lab_tool or LabReferenceTool()
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:

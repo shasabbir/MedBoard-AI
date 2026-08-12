@@ -59,6 +59,10 @@ module = [
     "langgraph",
     "langgraph.*",
     "pypdf",
+    "openai",
+    "openai.*",
+    "google.genai",
+    "google.genai.*",
     "streamlit",
     "streamlit.*",
 ]

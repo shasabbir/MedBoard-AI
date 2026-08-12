@@ -54,3 +54,9 @@ def test_compiled_graph_merges_parallel_evidence() -> None:
         "EV-SYMPTOM",
     }
     assert result["selected_specialists"] == []
+
+
+def test_graph_package_lazily_exposes_workflow_builders() -> None:
+    from medboard.graph import build_initial_workflow
+
+    assert callable(build_initial_workflow)

@@ -40,14 +40,16 @@ from medboard.tools.contradictions import detect_specialist_contradictions
 BASE_AGENT_NAMES = ["history", "symptoms", "laboratory", "medication"]
 
 
-def build_initial_workflow(provider: StructuredModelProvider) -> CompiledStateGraph:
+def build_initial_workflow(
+    provider: StructuredModelProvider, *, max_agent_retries: int = 2
+) -> CompiledStateGraph:
     """Compile supervisor planning and four concurrent base analyses."""
     builder = StateGraph(MedicalCaseState)
-    builder.add_node("supervisor", SupervisorAgent(provider))
-    builder.add_node("history", HistoryAgent(provider))
-    builder.add_node("symptoms", SymptomAgent(provider))
-    builder.add_node("laboratory", LaboratoryAgent(provider))
-    builder.add_node("medication", MedicationAgent(provider))
+    builder.add_node("supervisor", SupervisorAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("history", HistoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("symptoms", SymptomAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("laboratory", LaboratoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("medication", MedicationAgent(provider, max_retries=max_agent_retries))
     builder.add_node("complete", _complete_workflow)
 
     builder.add_edge(START, "supervisor")
@@ -62,29 +64,45 @@ def build_collaboration_workflow(
     provider: StructuredModelProvider,
     knowledge_store: KnowledgeStore | None = None,
     max_revisions: int | None = None,
+    *,
+    max_agent_retries: int = 2,
+    rag_top_k: int = 3,
 ) -> CompiledStateGraph:
     """Compile intake, differential reasoning, and conditional specialist review."""
     builder = StateGraph(MedicalCaseState)
-    builder.add_node("supervisor", SupervisorAgent(provider))
-    builder.add_node("history", HistoryAgent(provider))
-    builder.add_node("symptoms", SymptomAgent(provider))
-    builder.add_node("laboratory", LaboratoryAgent(provider))
-    builder.add_node("medication", MedicationAgent(provider))
-    builder.add_node("differential", DifferentialAgent(provider))
+    builder.add_node("supervisor", SupervisorAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("history", HistoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("symptoms", SymptomAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("laboratory", LaboratoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("medication", MedicationAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("differential", DifferentialAgent(provider, max_retries=max_agent_retries))
     builder.add_node("specialist_router", SpecialistRouter())
-    builder.add_node("cardiology", CardiologyAgent(provider))
-    builder.add_node("neurology", NeurologyAgent(provider))
-    builder.add_node("infectious_disease", InfectiousDiseaseAgent(provider))
+    builder.add_node("cardiology", CardiologyAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("neurology", NeurologyAgent(provider, max_retries=max_agent_retries))
+    builder.add_node(
+        "infectious_disease",
+        InfectiousDiseaseAgent(provider, max_retries=max_agent_retries),
+    )
     if knowledge_store is not None:
         builder.add_node(
             "evidence_retrieval",
-            EvidenceRetrievalAgent(provider, knowledge_store),
+            EvidenceRetrievalAgent(
+                provider,
+                knowledge_store,
+                top_k=rag_top_k,
+                max_retries=max_agent_retries,
+            ),
         )
     if max_revisions is not None:
-        builder.add_node("critic", CriticAgent(provider, max_revisions))
+        builder.add_node(
+            "critic",
+            CriticAgent(
+                provider, max_revisions, max_retries=max_agent_retries
+            ),
+        )
         builder.add_node("supervisor_revision", supervisor_revision)
         builder.add_node("differential_revision", revise_differential)
-        builder.add_node("risk", RiskAgent(provider))
+        builder.add_node("risk", RiskAgent(provider, max_retries=max_agent_retries))
         builder.add_node("review_complete", _complete_review)
     builder.add_node("collaboration_complete", _complete_collaboration)
 
@@ -129,25 +147,41 @@ def build_reviewable_workflow(
     *,
     max_revisions: int,
     checkpointer: object,
+    max_agent_retries: int = 2,
+    rag_top_k: int = 3,
 ) -> CompiledStateGraph:
     """Compile the complete review path with a durable human interrupt."""
     builder = StateGraph(MedicalCaseState)
-    builder.add_node("supervisor", SupervisorAgent(provider))
-    builder.add_node("history", HistoryAgent(provider))
-    builder.add_node("symptoms", SymptomAgent(provider))
-    builder.add_node("laboratory", LaboratoryAgent(provider))
-    builder.add_node("medication", MedicationAgent(provider))
-    builder.add_node("differential", DifferentialAgent(provider))
+    builder.add_node("supervisor", SupervisorAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("history", HistoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("symptoms", SymptomAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("laboratory", LaboratoryAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("medication", MedicationAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("differential", DifferentialAgent(provider, max_retries=max_agent_retries))
     builder.add_node("specialist_router", SpecialistRouter())
-    builder.add_node("cardiology", CardiologyAgent(provider))
-    builder.add_node("neurology", NeurologyAgent(provider))
-    builder.add_node("infectious_disease", InfectiousDiseaseAgent(provider))
-    builder.add_node("evidence_retrieval", EvidenceRetrievalAgent(provider, knowledge_store))
+    builder.add_node("cardiology", CardiologyAgent(provider, max_retries=max_agent_retries))
+    builder.add_node("neurology", NeurologyAgent(provider, max_retries=max_agent_retries))
+    builder.add_node(
+        "infectious_disease",
+        InfectiousDiseaseAgent(provider, max_retries=max_agent_retries),
+    )
+    builder.add_node(
+        "evidence_retrieval",
+        EvidenceRetrievalAgent(
+            provider,
+            knowledge_store,
+            top_k=rag_top_k,
+            max_retries=max_agent_retries,
+        ),
+    )
     builder.add_node("collaboration_complete", _complete_collaboration)
-    builder.add_node("critic", CriticAgent(provider, max_revisions))
+    builder.add_node(
+        "critic",
+        CriticAgent(provider, max_revisions, max_retries=max_agent_retries),
+    )
     builder.add_node("supervisor_revision", supervisor_revision)
     builder.add_node("differential_revision", revise_differential)
-    builder.add_node("risk", RiskAgent(provider))
+    builder.add_node("risk", RiskAgent(provider, max_retries=max_agent_retries))
     builder.add_node("human_review", human_review_node)
     builder.add_node("mark_waiting", mark_waiting_for_human)
     builder.add_node("apply_human_information", apply_human_information)
@@ -156,21 +190,30 @@ def build_reviewable_workflow(
         "retry_failed_agent",
         RetryFailedAgent(
             {
-                "history": HistoryAgent(provider),
-                "symptoms": SymptomAgent(provider),
-                "laboratory": LaboratoryAgent(provider),
-                "medication": MedicationAgent(provider),
-                "differential": DifferentialAgent(provider),
-                "cardiology": CardiologyAgent(provider),
-                "neurology": NeurologyAgent(provider),
-                "infectious_disease": InfectiousDiseaseAgent(provider),
-                "evidence_retrieval": EvidenceRetrievalAgent(provider, knowledge_store),
-                "critic": CriticAgent(provider, max_revisions),
-                "risk": RiskAgent(provider),
+                "history": HistoryAgent(provider, max_retries=max_agent_retries),
+                "symptoms": SymptomAgent(provider, max_retries=max_agent_retries),
+                "laboratory": LaboratoryAgent(provider, max_retries=max_agent_retries),
+                "medication": MedicationAgent(provider, max_retries=max_agent_retries),
+                "differential": DifferentialAgent(provider, max_retries=max_agent_retries),
+                "cardiology": CardiologyAgent(provider, max_retries=max_agent_retries),
+                "neurology": NeurologyAgent(provider, max_retries=max_agent_retries),
+                "infectious_disease": InfectiousDiseaseAgent(
+                    provider, max_retries=max_agent_retries
+                ),
+                "evidence_retrieval": EvidenceRetrievalAgent(
+                    provider,
+                    knowledge_store,
+                    top_k=rag_top_k,
+                    max_retries=max_agent_retries,
+                ),
+                "critic": CriticAgent(
+                    provider, max_revisions, max_retries=max_agent_retries
+                ),
+                "risk": RiskAgent(provider, max_retries=max_agent_retries),
             }
         ),
     )
-    builder.add_node("reporter", ReporterAgent(provider))
+    builder.add_node("reporter", ReporterAgent(provider, max_retries=max_agent_retries))
     builder.add_node("audit_complete", _complete_human_review)
 
     builder.add_edge(START, "supervisor")

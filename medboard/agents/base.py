@@ -24,8 +24,13 @@ class BaseAgent(ABC):
 
     name: str
 
-    def __init__(self, provider: StructuredModelProvider) -> None:
+    def __init__(
+        self, provider: StructuredModelProvider, *, max_retries: int = 2
+    ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries cannot be negative")
         self.provider = provider
+        self.max_retries = max_retries
 
     def __call__(self, state: MedicalCaseState) -> StateUpdate:
         started = perf_counter()
@@ -34,33 +39,57 @@ class BaseAgent(ABC):
             agent=self.name,
             status=AgentStatus.RUNNING,
         )
-        try:
-            update = self.analyze(state)
-        except Exception as exc:  # failures become visible graph state
+        retry_events: list[TraceEvent] = []
+        failures: list[Exception] = []
+        update: StateUpdate | None = None
+        for attempt in range(1, self.max_retries + 2):
+            try:
+                update = self.analyze(state)
+                break
+            except Exception as exc:
+                failures.append(exc)
+                if attempt <= self.max_retries:
+                    retry_events.append(
+                        TraceEvent(
+                            event_type=TraceEventType.AGENT_STARTED,
+                            agent=self.name,
+                            status=AgentStatus.RUNNING,
+                            details={"retry": True, "attempt": attempt + 1},
+                        )
+                    )
+        if update is None:
             duration_ms = (perf_counter() - started) * 1_000
+            last_error = failures[-1]
             return {
                 "errors": [
                     AgentError(
                         agent=self.name,
-                        error_type=type(exc).__name__,
-                        message=str(exc),
+                        error_type=type(last_error).__name__,
+                        message=str(last_error),
                         severity=Severity.HIGH,
-                        retryable=False,
+                        retryable=True,
+                        attempt=len(failures),
+                        details={"retry_limit": self.max_retries},
                     )
                 ],
                 "execution_trace": [
                     start_event,
+                    *retry_events,
                     TraceEvent(
                         event_type=TraceEventType.AGENT_FAILED,
                         agent=self.name,
                         status=AgentStatus.FAILED,
                         duration_ms=duration_ms,
+                        details={
+                            "attempts": len(failures),
+                            "retry_limit": self.max_retries,
+                        },
                     ),
                 ],
             }
 
         duration_ms = (perf_counter() - started) * 1_000
-        trace = [start_event, *list(update.get("execution_trace", []))]
+        trace = [start_event, *retry_events, *list(update.get("execution_trace", []))]
         trace.extend(
             [
                 TraceEvent(
@@ -68,6 +97,7 @@ class BaseAgent(ABC):
                     agent=self.name,
                     status=AgentStatus.COMPLETED,
                     duration_ms=duration_ms,
+                    details={"attempts": len(failures) + 1},
                 ),
             ]
         )

@@ -21,9 +21,14 @@ class EvidenceRetrievalAgent(BaseAgent):
     name = "evidence_retrieval"
 
     def __init__(
-        self, provider: StructuredModelProvider, store: KnowledgeStore, top_k: int = 3
+        self,
+        provider: StructuredModelProvider,
+        store: KnowledgeStore,
+        top_k: int = 3,
+        *,
+        max_retries: int = 2,
     ) -> None:
-        super().__init__(provider)
+        super().__init__(provider, max_retries=max_retries)
         self.store = store
         self.top_k = top_k
 
