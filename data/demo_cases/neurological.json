@@ -1,0 +1,13 @@
+{
+  "case_id": "CASE-NEURO-001",
+  "synthetic": true,
+  "age": 67,
+  "biological_sex": "male",
+  "chief_complaint": "Sudden confusion and left-sided weakness",
+  "narrative": "Synthetic teaching case with symptoms beginning approximately one hour ago.",
+  "symptoms": ["confusion", "unilateral weakness", "headache"],
+  "history": ["Hypertension"],
+  "medications": ["Medication names not yet available"],
+  "allergies": [],
+  "laboratory_values": []
+}

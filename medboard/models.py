@@ -327,6 +327,13 @@ class DifferentialDiagnosis(ContractModel):
         return unique
 
 
+class DifferentialAnalysis(ContractModel):
+    """Common agent envelope plus multiple competing diagnostic considerations."""
+
+    diagnoses: list[DifferentialDiagnosis] = Field(min_length=2)
+    output: AgentOutput
+
+
 class SpecialistOpinion(ContractModel):
     opinion_id: str = Field(default_factory=lambda: new_id("OPN"), frozen=True)
     specialist: NonEmptyString
@@ -336,7 +343,46 @@ class SpecialistOpinion(ContractModel):
     alternative_hypotheses: list[NonEmptyString] = Field(default_factory=list)
     required_information: list[NonEmptyString] = Field(default_factory=list)
     critical_concerns: list[NonEmptyString] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
     confidence: ConfidenceScore
+
+    @field_validator("evidence_ids")
+    @classmethod
+    def validate_specialist_evidence(cls, values: list[str]) -> list[str]:
+        unique = _unique_strings(values)
+        if any(not value.startswith("EV-") for value in unique):
+            raise ValueError("specialist evidence references must start with 'EV-'")
+        return unique
+
+    @model_validator(mode="after")
+    def hypothesis_positions_must_not_overlap(self) -> Self:
+        overlap = set(self.supported_hypotheses) & set(self.challenged_hypotheses)
+        if overlap:
+            raise ValueError("a specialist cannot support and challenge the same hypothesis")
+        return self
+
+
+class SpecialistRoutingDecision(ContractModel):
+    """Supervisor-owned record explaining conditional specialist dispatch."""
+
+    routing_id: str = Field(default_factory=lambda: new_id("ROUTE"), frozen=True)
+    selected_specialists: list[NonEmptyString] = Field(default_factory=list)
+    reasons: dict[str, NonEmptyString] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("selected_specialists", "evidence_ids")
+    @classmethod
+    def routing_values_are_unique(cls, values: list[str]) -> list[str]:
+        return _unique_strings(values)
+
+    @model_validator(mode="after")
+    def selected_specialists_require_reasons(self) -> Self:
+        missing_reasons = set(self.selected_specialists) - set(self.reasons)
+        if missing_reasons:
+            raise ValueError(f"routing reasons missing for: {sorted(missing_reasons)}")
+        if any(not value.startswith("EV-") for value in self.evidence_ids):
+            raise ValueError("routing evidence references must start with 'EV-'")
+        return self
 
 
 class RetrievedEvidence(ContractModel):
@@ -355,6 +401,7 @@ class Contradiction(ContractModel):
     agent_a: NonEmptyString
     agent_b: NonEmptyString
     claim_ids: list[str] = Field(default_factory=list)
+    hypothesis_id: str | None = None
     resolved: bool = False
     resolution: NonEmptyString | None = None
 

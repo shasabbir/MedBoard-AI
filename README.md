@@ -64,9 +64,21 @@ python -m medboard.cli --case data/demo_cases/anemia.json
 ```
 
 The supervisor creates a plan and dispatches History, Symptom, Laboratory, and
-Medication agents concurrently. The CLI prints the structured execution trace,
+Medication agents concurrently. Their evidence feeds a Differential Agent that
+must produce multiple competing considerations. The supervisor then conditionally
+routes only relevant Cardiology, Neurology, or Infectious Disease specialists;
+specialist challenges are retained as unresolved contradictions.
+
+Additional routing examples are bundled:
+
+```powershell
+medboard --case data/demo_cases/neurological.json
+medboard --case data/demo_cases/infectious.json
+```
+
+The CLI prints the selected specialists, structured execution trace,
 evidence/message totals, approximate demo token usage, and zero demo cost. Add
-`--json` to inspect the complete validated state.
+`--json` to inspect the complete validated state and routing reasons.
 
 ## Safety
 

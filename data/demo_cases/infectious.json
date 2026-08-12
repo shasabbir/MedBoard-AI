@@ -1,0 +1,15 @@
+{
+  "case_id": "CASE-INFECTIOUS-001",
+  "synthetic": true,
+  "age": 41,
+  "biological_sex": "female",
+  "chief_complaint": "Fever and productive cough",
+  "narrative": "Synthetic teaching case with four days of worsening symptoms.",
+  "symptoms": ["fever", "cough", "fatigue"],
+  "history": ["Recent close contact with a person with respiratory symptoms"],
+  "medications": ["Paracetamol as needed"],
+  "allergies": [],
+  "laboratory_values": [
+    {"name": "WBC", "value": 15400, "unit": "/uL"}
+  ]
+}

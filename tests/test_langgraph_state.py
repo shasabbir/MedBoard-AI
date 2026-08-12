@@ -8,7 +8,7 @@ from medboard.graph.state import MedicalCaseState, create_initial_state
 from medboard.models import Evidence, EvidenceType, MedicalCaseInput
 
 
-def test_compiled_graph_merges_parallel_evidence_and_routing() -> None:
+def test_compiled_graph_merges_parallel_evidence() -> None:
     history_evidence = Evidence(
         evidence_id="EV-HISTORY",
         evidence_type=EvidenceType.HISTORY,
@@ -27,13 +27,11 @@ def test_compiled_graph_merges_parallel_evidence_and_routing() -> None:
     def history_node(_: MedicalCaseState) -> dict[str, Any]:
         return {
             "evidence": [history_evidence],
-            "selected_specialists": ["neurology"],
         }
 
     def symptom_node(_: MedicalCaseState) -> dict[str, Any]:
         return {
             "evidence": [symptom_evidence],
-            "selected_specialists": ["neurology"],
         }
 
     builder = StateGraph(MedicalCaseState)
@@ -55,4 +53,4 @@ def test_compiled_graph_merges_parallel_evidence_and_routing() -> None:
         "EV-HISTORY",
         "EV-SYMPTOM",
     }
-    assert result["selected_specialists"] == ["neurology"]
+    assert result["selected_specialists"] == []

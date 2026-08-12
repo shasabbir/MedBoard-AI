@@ -13,10 +13,10 @@ from medboard.graph.reducers import (
     merge_messages,
     merge_missing_information,
     merge_retrieved_evidence,
+    merge_routing_decisions,
     merge_specialist_opinions,
     merge_token_usage,
     merge_trace,
-    merge_unique_strings,
 )
 from medboard.models import (
     AgentError,
@@ -25,6 +25,7 @@ from medboard.models import (
     Contradiction,
     CriticReview,
     DifferentialDiagnosis,
+    DifferentialAnalysis,
     Evidence,
     FinalReport,
     HistoryFindings,
@@ -37,6 +38,7 @@ from medboard.models import (
     NormalizedCase,
     RetrievedEvidence,
     SpecialistOpinion,
+    SpecialistRoutingDecision,
     SupervisorPlan,
     SymptomFindings,
     TokenUsage,
@@ -63,7 +65,11 @@ class MedicalCaseState(TypedDict):
         list[MissingInformationRequest], merge_missing_information
     ]
     differential_diagnoses: NotRequired[list[DifferentialDiagnosis]]
-    selected_specialists: Annotated[list[str], merge_unique_strings]
+    differential_analysis: NotRequired[DifferentialAnalysis | None]
+    selected_specialists: NotRequired[list[str]]
+    routing_decisions: Annotated[
+        list[SpecialistRoutingDecision], merge_routing_decisions
+    ]
     specialist_opinions: Annotated[
         list[SpecialistOpinion], merge_specialist_opinions
     ]
@@ -94,7 +100,9 @@ class MedicalCaseSnapshot(ContractModel):
     contradictions: list[Contradiction] = Field(default_factory=list)
     missing_information: list[MissingInformationRequest] = Field(default_factory=list)
     differential_diagnoses: list[DifferentialDiagnosis] = Field(default_factory=list)
+    differential_analysis: DifferentialAnalysis | None = None
     selected_specialists: list[str] = Field(default_factory=list)
+    routing_decisions: list[SpecialistRoutingDecision] = Field(default_factory=list)
     specialist_opinions: list[SpecialistOpinion] = Field(default_factory=list)
     retrieved_evidence: list[RetrievedEvidence] = Field(default_factory=list)
     critic_review: CriticReview | None = None
@@ -138,6 +146,18 @@ class MedicalCaseSnapshot(ContractModel):
                     ],
                 )
             )
+        if self.differential_analysis is not None:
+            for claim in self.differential_analysis.output.claims:
+                references.append(
+                    (
+                        claim.claim_id,
+                        [*claim.evidence_ids, *claim.contradicting_evidence_ids],
+                    )
+                )
+        for decision in self.routing_decisions:
+            references.append((decision.routing_id, decision.evidence_ids))
+        for opinion in self.specialist_opinions:
+            references.append((opinion.opinion_id, opinion.evidence_ids))
         for message in self.agent_messages:
             references.append((message.message_id, message.evidence_ids))
         for request in self.missing_information:
@@ -150,6 +170,41 @@ class MedicalCaseSnapshot(ContractModel):
         }
         if dangling:
             raise ValueError(f"state contains unknown evidence references: {dangling}")
+
+        if (
+            self.differential_analysis is not None
+            and self.differential_analysis.diagnoses != self.differential_diagnoses
+        ):
+            raise ValueError("differential analysis and state diagnoses must match")
+        known_hypotheses = {
+            diagnosis.hypothesis_id for diagnosis in self.differential_diagnoses
+        }
+        for opinion in self.specialist_opinions:
+            if opinion.specialist not in self.selected_specialists:
+                raise ValueError(
+                    f"specialist opinion was not selected by the router: {opinion.specialist}"
+                )
+            opinion_hypotheses = {
+                *opinion.supported_hypotheses,
+                *opinion.challenged_hypotheses,
+            }
+            unknown_hypotheses = opinion_hypotheses - known_hypotheses
+            if unknown_hypotheses:
+                raise ValueError(
+                    f"specialist opinion references unknown hypotheses: "
+                    f"{sorted(unknown_hypotheses)}"
+                )
+        unknown_contradictions = {
+            item.hypothesis_id
+            for item in self.contradictions
+            if item.hypothesis_id is not None
+            and item.hypothesis_id not in known_hypotheses
+        }
+        if unknown_contradictions:
+            raise ValueError(
+                f"contradictions reference unknown hypotheses: "
+                f"{sorted(unknown_contradictions)}"
+            )
         if self.final_report is not None and self.human_review.status is not HumanStatus.APPROVED:
             raise ValueError("a final report requires explicit human approval")
         return self

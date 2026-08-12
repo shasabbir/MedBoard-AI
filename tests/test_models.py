@@ -15,6 +15,7 @@ from medboard.models import (
     FinalReport,
     TriageLevel,
     TriageResult,
+    SpecialistOpinion,
 )
 
 
@@ -127,3 +128,14 @@ def test_model_json_round_trip_preserves_contract() -> None:
 
     assert restored == message
     assert restored.timestamp.tzinfo is not None
+
+
+def test_specialist_cannot_support_and_challenge_same_hypothesis() -> None:
+    with pytest.raises(ValidationError, match="cannot support and challenge"):
+        SpecialistOpinion(
+            specialist="cardiology",
+            assessment="Conflicting opinion",
+            supported_hypotheses=["HYP-ONE"],
+            challenged_hypotheses=["HYP-ONE"],
+            confidence=0.5,
+        )

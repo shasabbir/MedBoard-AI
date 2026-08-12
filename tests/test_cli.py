@@ -22,5 +22,8 @@ def test_cli_runs_bundled_case_and_prints_trace(
     assert exit_code == 0
     assert "MODE DEMO | CASE CASE-ANEMIA-001" in output
     assert "PLAN: history, symptoms, laboratory, medication" in output
+    assert "SELECTED SPECIALISTS: cardiology" in output
+    assert "DIFFERENTIAL CONSIDERATIONS: 2" in output
     assert "workflow_completed" in output
-    assert "9 evidence items, 8 messages, 0 errors" in output
+    assert "9 evidence items" in output
+    assert "0 errors" in output

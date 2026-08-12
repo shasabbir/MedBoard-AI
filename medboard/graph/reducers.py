@@ -12,6 +12,7 @@ from medboard.models import (
     Evidence,
     MissingInformationRequest,
     RetrievedEvidence,
+    SpecialistRoutingDecision,
     SpecialistOpinion,
     TokenUsage,
     TraceEvent,
@@ -65,6 +66,13 @@ def merge_specialist_opinions(
     current: list[SpecialistOpinion], update: list[SpecialistOpinion]
 ) -> list[SpecialistOpinion]:
     return merge_records(current, update, lambda item: item.opinion_id)
+
+
+def merge_routing_decisions(
+    current: list[SpecialistRoutingDecision],
+    update: list[SpecialistRoutingDecision],
+) -> list[SpecialistRoutingDecision]:
+    return merge_records(current, update, lambda item: item.routing_id)
 
 
 def merge_retrieved_evidence(

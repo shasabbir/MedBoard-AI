@@ -6,7 +6,7 @@ from medboard.graph.state import (
     create_initial_state,
     validate_state,
 )
-from medboard.graph.workflow import build_initial_workflow
+from medboard.graph.workflow import build_collaboration_workflow, build_initial_workflow
 
 __all__ = [
     "MedicalCaseSnapshot",
@@ -14,4 +14,5 @@ __all__ = [
     "create_initial_state",
     "validate_state",
     "build_initial_workflow",
+    "build_collaboration_workflow",
 ]

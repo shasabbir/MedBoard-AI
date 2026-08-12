@@ -8,7 +8,7 @@ from typing import Sequence
 
 from medboard.config import Settings, get_settings
 from medboard.graph.state import MedicalCaseSnapshot, create_initial_state, validate_state
-from medboard.graph.workflow import build_initial_workflow
+from medboard.graph.workflow import build_collaboration_workflow
 from medboard.models import MedicalCaseInput
 from medboard.observability import get_logger, log_event, setup_logging
 from medboard.providers import DemoModelProvider
@@ -44,7 +44,7 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
     initial_state = create_initial_state(case)
     log_event(logger, "case_run_started", run_id=initial_state["run_id"], case_id=case.case_id)
 
-    graph = build_initial_workflow(DemoModelProvider())
+    graph = build_collaboration_workflow(DemoModelProvider())
     result = graph.invoke(initial_state)
     snapshot = validate_state(result)
 
@@ -66,6 +66,9 @@ def _print_trace(snapshot: MedicalCaseSnapshot) -> None:
     print(f"RUN {snapshot.run_id} | MODE DEMO | CASE {snapshot.case_input.case_id}")
     planned_agents = snapshot.supervisor_plan.initial_agents if snapshot.supervisor_plan else []
     print(f"PLAN: {', '.join(planned_agents)}")
+    routed = ", ".join(snapshot.selected_specialists) or "none"
+    print(f"SELECTED SPECIALISTS: {routed}")
+    print(f"DIFFERENTIAL CONSIDERATIONS: {len(snapshot.differential_diagnoses)}")
     print("EXECUTION TRACE")
     for event in snapshot.execution_trace:
         duration = f" | {event.duration_ms:.2f} ms" if event.duration_ms is not None else ""
