@@ -2635,47 +2635,84 @@ Future work
 
 # 77. Architecture Documentation
 
-Include Mermaid:
+The following diagram is the authoritative logical architecture. Any README,
+presentation, UI graph, or generated image must preserve these nodes and edge
+semantics. A fan-out from the Specialist Router means **one or more selected
+specialists**, never that every specialist runs for every case.
 
 ```mermaid
 flowchart TD
-    U[User Case] --> S[Supervisor]
+    U[User / Synthetic Case Input] --> S[Supervisor Agent]
 
-    S --> H[History Agent]
-    S --> SY[Symptom Agent]
-    S --> L[Laboratory Agent]
-    S --> M[Medication Agent]
+    S -->|plan and dispatch| H[Patient History Agent]
+    S -->|plan and dispatch| SY[Symptom Analysis Agent]
+    S -->|plan and dispatch| L[Laboratory Analysis Agent]
+    S -->|plan and dispatch| M[Medication Agent]
 
-    H --> E[Shared Evidence]
-    SY --> E
-    L --> E
-    M --> E
+    H --> WM[Shared Workflow Memory<br/>structured evidence, claims, messages and trace]
+    SY --> WM
+    L --> WM
+    M --> WM
 
-    E --> D[Differential Diagnosis]
+    WM --> D[Differential Diagnosis Agent]
+    D --> SR{Dynamic Specialist Router}
 
-    D --> SR{Specialist Router}
+    SR -->|when cardiac evidence warrants| C[Cardiology Agent]
+    SR -->|when neurological evidence warrants| N[Neurology Agent]
+    SR -->|when infectious evidence warrants| I[Infectious Disease Agent]
 
-    SR --> C[Cardiology]
-    SR --> N[Neurology]
-    SR --> I[Infectious Disease]
+    D --> Q[Clinical Evidence Questions]
+    C --> Q
+    N --> Q
+    I --> Q
+    Q --> RAG[Evidence Retrieval / RAG Agent]
+    KB[(Medical Knowledge Memory<br/>Vector Store)] <--> RAG
 
-    C --> RAG[Evidence Retrieval]
-    N --> RAG
-    I --> RAG
+    RAG --> CR[Red-Team Critic Agent]
+    CR -->|revise; maximum 2 or 3 cycles| S
+    CR -->|accept, or revision limit reached<br/>with unresolved issues recorded| R[Risk / Triage Agent]
 
-    RAG --> CR[Red-Team Critic]
+    R --> HITL{Human / Clinician Review}
+    HITL -->|add evidence, request specialist,<br/>request revision, or retry failure| S
+    HITL -->|reject and retain audit record| CM[(Case History Memory<br/>SQLite)]
+    HITL -->|approve| F[Final Report Generator]
+    F --> CM
 
-    CR -->|Revision| S
-    CR -->|Accepted| R[Risk/Triage]
+    CM -. read prior cases and feedback .-> S
+    S -. checkpoints and messages .-> WM
+    HITL -. decision and feedback .-> WM
 
-    R --> HITL{Human Review}
-
-    HITL -->|Add Evidence| S
-    HITL -->|Request Revision| S
-    HITL -->|Approve| F[Final Report]
-
-    F --> CM[Case Memory]
+    OBS[Observability<br/>trace, logs, errors, retries,<br/>timing, tokens and cost]
+    UI[Streamlit UI<br/>case input, live graph, messages,<br/>memory, evidence and report]
+    S -. events .-> OBS
+    CR -. events .-> OBS
+    R -. events .-> OBS
+    WM -. live state .-> UI
+    OBS -. live telemetry .-> UI
+    HITL -. controls .-> UI
 ```
+
+Architecture rules:
+
+1. The Supervisor owns planning, routing, recovery, and re-planning.
+2. History, Symptom, Laboratory, and Medication agents may run concurrently.
+3. Every agent writes validated structured outputs and `AgentMessage` objects to
+   Shared Workflow Memory; arrows do not imply unstructured prompt chaining.
+4. The Dynamic Specialist Router invokes only justified specialists and may
+   select one, several, or none.
+5. RAG retrieves source-backed evidence for questions produced by the
+   differential and selected specialist analyses.
+6. The Red-Team Critic must produce an explicit `accept` or `revise` decision.
+   Revision returns to the Supervisor and is capped at the configured maximum.
+7. Risk/Triage runs after critic acceptance, or after the revision limit with
+   unresolved issues explicitly recorded.
+8. Human Review is a real interrupt/checkpoint. New evidence causes only the
+   affected agents and their downstream dependants to rerun.
+9. Final Report generation is reachable only through human approval.
+10. Workflow Memory is temporary state, Knowledge Memory is the RAG vector
+    store, and Case History Memory is durable SQLite storage.
+11. The Streamlit UI and observability layer expose the process but do not make
+    clinical decisions.
 
 ---
 
@@ -3025,3 +3062,92 @@ If trade-offs are required, prioritize in this order:
 Do not sacrifice the first six items to add flashy secondary functionality.
 
 Build **MedBoard AI as a genuine collaborative multi-agent decision-support system**, not as a collection of named prompts.
+
+---
+
+# 86. Final Architecture Acceptance Checklist
+
+The architecture and implementation are aligned only when all of the following
+are true:
+
+- [ ] The displayed graph matches the authoritative diagram in Section 77.
+- [ ] Initial independent agents execute concurrently where supported.
+- [ ] Specialist selection is conditional and the routing reason is stored.
+- [ ] All claims reference evidence IDs and all inter-agent messages are stored.
+- [ ] RAG results contain document, source, section, excerpt, and similarity.
+- [ ] The critic can trigger a bounded re-plan and revision cycle.
+- [ ] Risk/Triage never generates the final diagnosis.
+- [ ] Human review is a persisted interrupt with all required actions.
+- [ ] Only approved analyses reach the Final Report Generator.
+- [ ] Rejected and incomplete runs remain available as auditable records.
+- [ ] Workflow, knowledge, and case-history memory remain distinct.
+- [ ] Trace, communication history, errors, retries, token use, cost, and timing
+      are visible in Streamlit.
+- [ ] Every report includes the mandatory experimental decision-support
+      disclaimer and avoids prescriptions or definitive diagnostic claims.
+- [ ] Demo mode and live-LLM mode traverse the same graph.
+- [ ] Tests cover normal completion, conditional routing, revision, revision
+      limit, human resume, rejection, agent failure, and RAG failure.
+
+---
+
+# 87. Diagram Generation Prompt
+
+Use the following prompt to regenerate a polished presentation image. Preserve
+the exact wording and edge meanings; do not simplify away decision branches or
+feedback loops.
+
+```text
+Use case: infographic-diagram
+Asset type: university project architecture diagram, 16:9 landscape
+Primary request: Create a polished, technically accurate architecture diagram titled
+"MedBoard AI — Interactive Multi-Agent Medical Diagnostic Decision Support Board".
+
+Use a clean white background, navy headings, restrained blue/teal/purple/orange/green
+accents, rounded rectangular nodes, thin professional connector lines, consistent
+healthcare-style outline icons, high contrast, generous spacing, and fully legible text.
+Use a top-to-bottom main workflow with side panels for memory, observability, and UI.
+
+Show these exact main nodes and connections:
+1. "User / Synthetic Case Input" → "Supervisor Agent".
+2. Supervisor fans out in parallel to "Patient History Agent", "Symptom Analysis Agent",
+   "Laboratory Analysis Agent", and "Medication Agent".
+3. All four converge into "Shared Workflow Memory" with subtitle
+   "structured evidence, claims, messages and trace".
+4. Shared Workflow Memory → "Differential Diagnosis Agent" → diamond
+   "Dynamic Specialist Router".
+5. The router has three conditional branches labeled "when warranted" to
+   "Cardiology Agent", "Neurology Agent", and "Infectious Disease Agent".
+   Visually make clear that only selected specialists run—not all specialists.
+6. Differential Diagnosis and selected specialists converge into
+   "Clinical Evidence Questions" → "Evidence Retrieval / RAG Agent".
+7. "Medical Knowledge Memory — Vector Store" connects bidirectionally to the RAG agent.
+8. RAG → "Red-Team Critic Agent".
+9. Critic has two explicit labeled branches:
+   "REVISE — maximum 2 or 3 cycles" loops back to Supervisor;
+   "ACCEPT — or revision limit with unresolved issues recorded" continues to
+   "Risk / Triage Agent".
+10. Risk / Triage → diamond "Human / Clinician Review".
+11. Human Review has three explicit outcomes:
+    "APPROVE" → "Final Report Generator" → "Case History Memory — SQLite";
+    "ADD EVIDENCE / REQUEST SPECIALIST / REQUEST REVISION / RETRY" loops to Supervisor;
+    "REJECT" → Case History Memory with label "retain audit record".
+12. Show a dotted read connection from Case History Memory back to Supervisor labeled
+    "prior cases and feedback".
+13. Add a side component "Observability" with subtitle
+    "trace, logs, errors, retries, timing, tokens and cost", receiving dotted event
+    connections from the workflow.
+14. Add a side component "Streamlit UI" with subtitle
+    "case input, live graph, messages, memory, evidence and report", connected by dotted
+    display/control lines to Shared Workflow Memory, Observability, and Human Review.
+
+Include a small legend: solid arrows = workflow/data flow; dashed arrows = feedback,
+control, persistence, or telemetry; diamond = decision/interrupt; cylinder = durable or
+knowledge storage. Add a small footer: "Educational decision-support prototype — human
+clinical review required".
+
+Constraints: exact spelling; no duplicate nodes; no unlabeled feedback loops; no arrows
+that imply every specialist always runs; final report only after approval; avoid tiny text,
+crossing connectors, gradients, decorative anatomy, photorealistic people, prescriptions,
+diagnostic claims, logos, and watermarks. Render all text verbatim and proofread it.
+```
