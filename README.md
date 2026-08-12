@@ -4,9 +4,10 @@ MedBoard AI is an educational, multi-agent clinical reasoning demonstration for
 human clinician review. It is not a diagnostic service, autonomous doctor, or
 production medical device.
 
-The repository is currently in its foundation stage. Configuration, dependency
-metadata, structured logging, and development quality checks are available;
-the clinical workflow will be added incrementally.
+The repository currently provides its foundation and shared domain-contract
+layer. Configuration, structured logging, LangGraph-compatible state, safe
+parallel reducers, and development quality checks are available; clinical
+agents and workflow behavior will be added incrementally.
 
 ## Setup
 
@@ -45,6 +46,14 @@ pytest
 
 The bootstrap command validates configuration, creates local runtime
 directories, and emits a structured startup log at `logs/medboard.jsonl`.
+
+## Shared-state contracts
+
+All workflow data crosses agent boundaries as strict Pydantic models. Claims
+reference evidence by stable IDs; messages, errors, traces, retrievals, and
+usage records are append-only audit objects. `MedicalCaseState` declares merge
+reducers for values emitted concurrently, while `MedicalCaseSnapshot` performs
+whole-state validation before checkpointing or persistence.
 
 ## Safety
 

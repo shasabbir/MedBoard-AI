@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "MedBoard AI contributors" }]
 dependencies = [
+    "langgraph>=1.0,<2",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.9,<3",
 ]
@@ -17,7 +18,6 @@ dependencies = [
 [project.optional-dependencies]
 workflow = [
     "langchain>=1.0,<2",
-    "langgraph>=1.0,<2",
 ]
 providers = [
     "google-genai>=1.0,<2",
