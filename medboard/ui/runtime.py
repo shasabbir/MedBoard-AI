@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from medboard.config import Settings, get_settings
 from medboard.graph.workflow import build_reviewable_workflow
 from medboard.memory import CaseMemoryRepository, Database, WorkflowCheckpoint
+from medboard.observability import setup_logging
 from medboard.providers import DemoModelProvider
 from medboard.rag.store import KnowledgeStore
 from medboard.workflow_service import WorkflowService
@@ -27,6 +28,7 @@ def get_runtime() -> AppRuntime:
     if not settings.demo_mode:
         raise RuntimeError("The Streamlit workflow currently supports DEMO_MODE=true")
     settings.ensure_runtime_directories()
+    setup_logging(settings)
     knowledge_store = KnowledgeStore(settings.chroma_persist_directory)
     knowledge_store.ingest_directory(settings.knowledge_directory)
     checkpoint = WorkflowCheckpoint(settings.workflow_checkpoint_path)

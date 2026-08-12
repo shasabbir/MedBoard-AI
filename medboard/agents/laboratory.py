@@ -14,6 +14,8 @@ from medboard.models import (
     LaboratoryFindings,
     MessageType,
     MissingInformationRequest,
+    TraceEvent,
+    TraceEventType,
 )
 from medboard.providers import StructuredModelProvider
 from medboard.tools.lab_reference import LabAssessment, LabReferenceTool, LabStatus
@@ -109,6 +111,17 @@ class LaboratoryAgent(BaseAgent):
                 )
             ],
             "token_usage": [result.usage],
+            "execution_trace": [
+                TraceEvent(
+                    event_type=TraceEventType.TOOL_CALLED,
+                    agent=self.name,
+                    status=AgentStatus.COMPLETED,
+                    details={
+                        "tool": "LabReferenceTool",
+                        "call_count": len(case.laboratory_values),
+                    },
+                )
+            ],
         }
         if missing:
             update["missing_information"] = [

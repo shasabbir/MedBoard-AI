@@ -10,6 +10,8 @@ from medboard.models import (
     AgentStatus,
     EvidenceRetrievalAnalysis,
     MessageType,
+    TraceEvent,
+    TraceEventType,
 )
 from medboard.providers import StructuredModelProvider
 from medboard.rag.store import KnowledgeStore
@@ -74,4 +76,16 @@ class EvidenceRetrievalAgent(BaseAgent):
                 )
             ],
             "token_usage": [provider_result.usage],
+            "execution_trace": [
+                TraceEvent(
+                    event_type=TraceEventType.TOOL_CALLED,
+                    agent=self.name,
+                    status=AgentStatus.COMPLETED,
+                    details={
+                        "tool": "RAGSearchTool",
+                        "call_count": len(questions),
+                        "result_count": len(results),
+                    },
+                )
+            ],
         }

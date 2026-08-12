@@ -8,40 +8,80 @@ import streamlit as st
 
 from medboard.graph.state import MedicalCaseSnapshot
 
-GRAPH = """
-flowchart LR
-  U[Case Input] --> S[Supervisor]
-  S --> H[History]
-  S --> SY[Symptoms]
-  S --> L[Labs]
-  S --> M[Medication]
-  H --> D[Differential]
-  SY --> D
-  L --> D
-  M --> D
-  D --> SR{Specialist Router}
-  SR --> C[Cardiology]
-  SR --> N[Neurology]
-  SR --> I[Infectious Disease]
-  C --> RAG[RAG]
-  N --> RAG
-  I --> RAG
-  SR --> RAG
-  RAG --> CR[Critic]
-  CR -->|revise| S
-  CR -->|accept| R[Risk / Triage]
-  R --> HR{Human Review}
-  HR -->|approve| F[Final Report]
-  HR -->|revise / add info| S
-  HR -->|reject| DB[(Case History)]
-  F --> DB
+GRAPH = r"""
+digraph MedBoard {
+  rankdir=LR;
+  graph [bgcolor="transparent", pad="0.2", nodesep="0.3", ranksep="0.55"];
+  node [shape=box, style="rounded,filled", fillcolor="#eff6ff", color="#2563eb",
+        fontname="Arial", fontsize=10];
+  edge [color="#64748b", fontname="Arial", fontsize=8];
+  input [label="Synthetic Case Input"];
+  supervisor [label="Supervisor Agent", fillcolor="#dbeafe"];
+  history [label="History"];
+  symptoms [label="Symptoms"];
+  laboratory [label="Laboratory"];
+  medication [label="Medication"];
+  memory [label="Shared Workflow Memory", shape=cylinder, fillcolor="#f1f5f9"];
+  differential [label="Differential Diagnosis"];
+  router [label="Dynamic Specialist Router", shape=diamond, fillcolor="#fef3c7"];
+  cardiology [label="Cardiology"];
+  neurology [label="Neurology"];
+  infectious_disease [label="Infectious Disease"];
+  questions [label="Clinical Evidence Questions"];
+  rag [label="Evidence Retrieval / RAG"];
+  knowledge [label="Knowledge Memory", shape=cylinder, fillcolor="#ecfdf5"];
+  critic [label="Red-Team Critic", fillcolor="#fce7f3"];
+  risk [label="Risk / Triage", fillcolor="#ffedd5"];
+  human [label="Human / Clinician Review", shape=diamond, fillcolor="#fef3c7"];
+  report [label="Final Report Generator", fillcolor="#dcfce7"];
+  cases [label="Case History Memory", shape=cylinder, fillcolor="#f1f5f9"];
+  observability [label="Observability\ntrace · logs · errors · retries\ntiming · tokens · cost",
+                 fillcolor="#eef2ff"];
+  ui [label="Streamlit UI\ncase input · graph · messages\nmemory · evidence · report",
+      fillcolor="#eef2ff"];
+
+  input -> supervisor;
+  supervisor -> history [label="dispatch"];
+  supervisor -> symptoms [label="dispatch"];
+  supervisor -> laboratory [label="dispatch"];
+  supervisor -> medication [label="dispatch"];
+  history -> memory; symptoms -> memory; laboratory -> memory; medication -> memory;
+  memory -> differential;
+  differential -> router;
+  router -> cardiology [label="when selected"];
+  router -> neurology [label="when selected"];
+  router -> infectious_disease [label="when selected"];
+  differential -> questions; cardiology -> questions; neurology -> questions;
+  infectious_disease -> questions;
+  questions -> rag; knowledge -> rag [dir=both];
+  rag -> critic;
+  critic -> supervisor [label="revise ≤ limit", style=dashed];
+  critic -> risk [label="accept / limit"];
+  risk -> human;
+  human -> supervisor [label="add info / revise / retry", style=dashed];
+  human -> report [label="approve"];
+  human -> cases [label="reject + audit"];
+  report -> cases;
+  cases -> supervisor [label="prior cases", style=dashed];
+  supervisor -> memory [label="checkpoints + messages", style=dashed];
+  human -> memory [label="decision + feedback", style=dashed];
+  supervisor -> observability [label="events", style=dashed];
+  critic -> observability [label="events", style=dashed];
+  risk -> observability [label="events", style=dashed];
+  memory -> ui [label="live state", style=dashed];
+  observability -> ui [label="telemetry", style=dashed];
+  human -> ui [label="controls", dir=both, style=dashed];
+}
 """
 
 
 def render_workflow(snapshot: MedicalCaseSnapshot) -> None:
     st.subheader("Execution graph")
-    st.code(GRAPH, language="mermaid")
-    st.caption("Conditional branches run only when selected; the Mermaid source is inspectable.")
+    st.graphviz_chart(GRAPH, use_container_width=True)
+    st.caption(
+        "Solid edges are workflow/data flow; dashed edges are feedback or history. "
+        "Specialist branches run only when selected."
+    )
 
     agents = _agent_statuses(snapshot)
     columns = st.columns(4)

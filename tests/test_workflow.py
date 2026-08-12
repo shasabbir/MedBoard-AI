@@ -28,6 +28,11 @@ def test_demo_case_completes_all_parallel_base_analyses() -> None:
     assert len(snapshot.token_usage) == 5
     assert snapshot.errors == []
     assert snapshot.execution_trace[-1].event_type is TraceEventType.WORKFLOW_COMPLETED
+    assert any(
+        event.event_type is TraceEventType.TOOL_CALLED
+        and event.details.get("tool") == "LabReferenceTool"
+        for event in snapshot.execution_trace
+    )
 
 
 def test_demo_case_produces_auditable_evidence_and_messages() -> None:

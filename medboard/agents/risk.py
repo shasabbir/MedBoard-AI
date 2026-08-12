@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from medboard.agents.base import BaseAgent, StateUpdate
 from medboard.graph.state import MedicalCaseState
-from medboard.models import AgentMessage, MessageType, TriageResult
+from medboard.models import (
+    AgentMessage,
+    AgentStatus,
+    MessageType,
+    TraceEvent,
+    TraceEventType,
+    TriageResult,
+)
 from medboard.providers import StructuredModelProvider
 from medboard.tools.risk_rules import RiskRuleTool
 
@@ -49,4 +56,16 @@ class RiskAgent(BaseAgent):
                 )
             ],
             "token_usage": [result.usage],
+            "execution_trace": [
+                TraceEvent(
+                    event_type=TraceEventType.TOOL_CALLED,
+                    agent=self.name,
+                    status=AgentStatus.COMPLETED,
+                    details={
+                        "tool": "RiskRuleTool",
+                        "call_count": 1,
+                        "red_flag_count": len(result.output.red_flags),
+                    },
+                )
+            ],
         }

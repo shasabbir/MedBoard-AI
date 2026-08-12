@@ -1,161 +1,217 @@
 # MedBoard AI
 
-MedBoard AI is an educational, multi-agent clinical reasoning demonstration for
-human clinician review. It is not a diagnostic service, autonomous doctor, or
-production medical device.
+An interactive multi-agent clinical reasoning board for education and human review.
 
-The repository currently provides its foundation and shared domain-contract
-layer. Configuration, structured logging, LangGraph-compatible state, safe
-parallel reducers, and development quality checks are available; clinical
-agents and workflow behavior will be added incrementally.
+MedBoard AI demonstrates how a supervised team of specialized agents can investigate a
+synthetic case using structured evidence, conditional specialist routing, local retrieval,
+red-team criticism, durable memory, and a real human approval checkpoint. It is not a
+diagnostic service, autonomous doctor, or production medical device.
 
-## Setup
+![MedBoard multi-agent architecture](diagram_final.png)
 
-Python 3.11 or newer is required.
+## Why multi-agent?
+
+A single answer hides how evidence was gathered and challenged. MedBoard instead makes the
+investigation observable: four intake agents work concurrently, a differential agent creates
+competing considerations, only justified specialists run, RAG answers explicit evidence
+questions, a critic can force bounded revision, and a clinician controls the final report.
+Every cross-agent claim uses validated Pydantic contracts and stable evidence IDs.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    U[User / Synthetic Case Input] --> S[Supervisor Agent]
+    S -->|plan and dispatch| H[Patient History Agent]
+    S -->|plan and dispatch| SY[Symptom Analysis Agent]
+    S -->|plan and dispatch| L[Laboratory Analysis Agent]
+    S -->|plan and dispatch| M[Medication Agent]
+    H --> WM[Shared Workflow Memory]
+    SY --> WM
+    L --> WM
+    M --> WM
+    WM --> D[Differential Diagnosis Agent]
+    D --> SR{Dynamic Specialist Router}
+    SR -->|when warranted| C[Cardiology Agent]
+    SR -->|when warranted| N[Neurology Agent]
+    SR -->|when warranted| I[Infectious Disease Agent]
+    D --> Q[Clinical Evidence Questions]
+    C --> Q
+    N --> Q
+    I --> Q
+    Q --> RAG[Evidence Retrieval / RAG Agent]
+    KB[(Medical Knowledge Memory)] <--> RAG
+    RAG --> CR[Red-Team Critic Agent]
+    CR -->|revise; bounded| S
+    CR -->|accept or limit| R[Risk / Triage Agent]
+    R --> HITL{Human / Clinician Review}
+    HITL -->|add evidence / specialist / revision / retry| S
+    HITL -->|reject; retain audit| CM[(Case History Memory)]
+    HITL -->|approve| F[Final Report Generator]
+    F --> CM
+    CM -. prior cases and feedback .-> S
+    S -. checkpoints and messages .-> WM
+    HITL -. decision and feedback .-> WM
+    OBS[Observability: trace, logs, errors, retries, timing, tokens and cost]
+    UI[Streamlit UI: case input, graph, messages, memory, evidence and report]
+    S -. events .-> OBS
+    CR -. events .-> OBS
+    R -. events .-> OBS
+    WM -. live state .-> UI
+    OBS -. telemetry .-> UI
+    HITL -. controls .-> UI
+```
+
+The rendered application graph uses the same semantics. Workflow checkpoints, the Chroma
+knowledge index, and SQLite case history are separate stores. Final report generation is
+reachable only after explicit human approval.
+
+## Agent team
+
+| Agent | Responsibility |
+| --- | --- |
+| Supervisor | Plans, dispatches, routes, and coordinates recovery |
+| History, Symptom, Laboratory, Medication | Independently extract structured evidence |
+| Differential | Produces multiple ranked considerations and missing evidence |
+| Specialist Router | Selects one, several, or no specialists from evidence |
+| Cardiology, Neurology, Infectious Disease | Support, challenge, and request information |
+| Evidence Retrieval | Searches local source-attributed clinical material |
+| Red-Team Critic | Tests unsupported claims and triggers bounded revision |
+| Risk / Triage | Applies transparent urgency rules without diagnosing |
+| Human Review | Approves, rejects, adds evidence, revises, routes, or retries |
+| Report Generator | Creates the disclaimer-bearing report after approval |
+
+## Technology
+
+- Python 3.11+, Pydantic, LangGraph, and Streamlit
+- SQLite for checkpoints and auditable case history
+- ChromaDB with deterministic local embeddings for offline RAG
+- OpenAI/Gemini configuration boundary plus a deterministic demo provider
+- Pytest, coverage, mypy, Flake8, and reproducible evaluation artifacts
+
+## Quick start
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-Copy-Item .env.example .env
-```
-
-Runtime integrations are separated by concern so each milestone installs only
-what it uses:
-
-```powershell
 python -m pip install -e ".[workflow,providers,dev]"
+Copy-Item .env.example .env
+streamlit run app.py
 ```
 
-Chroma publishes wheels for standard CPython distributions. Environments that
-cannot use those wheels also require a Rust toolchain to build it from source.
+The default `DEMO_MODE=true` requires no API key or network connection. Use only synthetic,
+public benchmark, or appropriately de-identified inputs.
 
-The default configuration uses safe offline demo mode. API credentials are only
-required after setting `DEMO_MODE=false`. Set `LLM_PROVIDER` to `openai` or
-`gemini`, then provide the matching API key and model name in `.env`.
+## Configuration
 
-## Foundation checks
+Configuration is environment-driven; see [.env.example](.env.example).
 
-```powershell
-python -m medboard
-flake8 medboard tests
-mypy medboard
-pytest
-```
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `DEMO_MODE` | Use deterministic offline provider | `true` |
+| `LLM_PROVIDER` | Provider selection (`openai` or `gemini`) | `openai` |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | OpenAI live-mode credentials/model | empty |
+| `GOOGLE_API_KEY`, `GEMINI_MODEL` | Gemini live-mode credentials/model | empty |
+| `MAX_REVISIONS` | Critic revision bound | `2` |
+| `MAX_AGENT_RETRIES` | Configured retry limit | `2` |
+| `RAG_TOP_K` | Retrieval result limit | `5` |
+| `DATABASE_PATH` | Durable case-history SQLite path | `data/medboard.db` |
+| `WORKFLOW_CHECKPOINT_PATH` | LangGraph checkpoint SQLite path | `data/workflow_checkpoints.db` |
 
-The bootstrap command validates configuration, creates local runtime
-directories, and emits a structured startup log at `logs/medboard.jsonl`.
+Live-provider execution is intentionally not enabled in the current prototype; the provider
+configuration contract is ready, while all verified demos use the same graph through the
+offline provider.
 
-## Shared-state contracts
+## Run and present
 
-All workflow data crosses agent boundaries as strict Pydantic models. Claims
-reference evidence by stable IDs; messages, errors, traces, retrievals, and
-usage records are append-only audit objects. `MedicalCaseState` declares merge
-reducers for values emitted concurrently, while `MedicalCaseSnapshot` performs
-whole-state validation before checkpointing or persistence.
-
-## Run the first investigation workflow
-
-The bundled synthetic anemia-like case runs fully offline:
-
-```powershell
-python -m medboard.cli --case data/demo_cases/anemia.json
-```
-
-The supervisor creates a plan and dispatches History, Symptom, Laboratory, and
-Medication agents concurrently. Their evidence feeds a Differential Agent that
-must produce multiple competing considerations. The supervisor then conditionally
-routes only relevant Cardiology, Neurology, or Infectious Disease specialists;
-specialist challenges are retained as unresolved contradictions.
-
-Additional routing examples are bundled:
-
-```powershell
-medboard --case data/demo_cases/neurological.json
-medboard --case data/demo_cases/infectious.json
-```
-
-The CLI prints the selected specialists, structured execution trace,
-evidence/message totals, approximate demo token usage, and zero demo cost. Add
-`--json` to inspect the complete validated state and routing reasons.
-
-Launch the interactive application with:
+Launch the dashboard:
 
 ```powershell
 streamlit run app.py
 ```
 
-The dashboard exposes case entry, agent status and workflow graph, differential
-reasoning, routing explanations, disagreements, RAG chunks and public sources,
-messages, execution trace, token/cost totals, persisted case history, human
-review controls, and the approval-gated final report.
+Run a concise CLI investigation:
 
-## Reproducible evaluation
+```powershell
+python -m medboard.cli --case data/demo_cases/neurological.json
+```
 
-Run the deterministic offline benchmark and controlled ablations with:
+The five bundled cases cover anemia, cardiac, infectious, neurological, and routine paths.
+For a presentation walkthrough, use [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
+
+## Screenshots and visual assets
+
+The architecture image above is the polished presentation visual. The live dashboard provides
+the rendered execution graph, operational metrics, agent-state cards, evidence, messages,
+trace, memory, logs, settings, human controls, and final report. Application screenshots
+should be captured from the running local dashboard so persisted run identifiers and case
+state are authentic rather than mocked.
+
+## RAG and evidence provenance
+
+Documents under `data/knowledge` contain title, organization, year, source URL, and document
+type metadata. Ingestion creates heading-aware chunks and local embeddings. Each retrieval
+retains its question ID, chunk ID, document, organization, section, excerpt, similarity, and
+public URL. The Knowledge Base page makes these sources inspectable.
+
+## Evaluation
 
 ```powershell
 python -m medboard.evaluation --output evaluation/results
 ```
 
-The suite evaluates labeled synthetic cases independently for top-1/3/5
-differential recall, specialist-routing precision and recall, red-flag recall
-and false alarms, triage accuracy, missing-information recall, unsupported
-claims, and resource usage. It also measures RAG Recall@K, mean reciprocal rank,
-and citation-metadata completeness. Results are written as both JSON and
-Markdown. The single-pass configuration is explicitly an offline proxy rather
-than a production LLM baseline; these metrics test software behavior and do not
-establish clinical efficacy.
+The deterministic benchmark measures differential Top-1/3/5 recall, routing precision and
+recall, red-flag behavior, triage, missing-information recall, unsupported claims, resource
+usage, RAG Recall@K, MRR, and citation completeness. It compares a single-pass proxy,
+multi-agent workflow without critic, and full MedBoard. See
+[evaluation/README.md](evaluation/README.md) and the checked-in
+[results](evaluation/results/evaluation_results.md). These small synthetic benchmarks test
+software behavior, not clinical efficacy.
 
-## Local evidence retrieval
+## Quality checks
 
-Curated educational summaries in `data/knowledge` include explicit source
-metadata and public URLs. At startup, the CLI parses and chunks Markdown, text,
-or PDF documents, creates deterministic local embeddings, and upserts them into
-the persistent Chroma index. Differential and selected-specialist questions are
-searched independently; every result retains its question ID, chunk ID,
-document, organization, section, excerpt, similarity score, and source URL.
+```powershell
+python -m medboard
+flake8 medboard tests app.py
+mypy medboard
+pytest --cov=medboard
+python -m pip check
+```
 
-The local hashing embedder is intended for reliable offline demonstrations, not
-as a claim of state-of-the-art semantic retrieval. Its retrieval quality is
-covered by deterministic tests and can later be replaced behind the store
-boundary.
+## Repository map
 
-## Red-team review and triage
+```text
+app.py                    Streamlit entry point
+medboard/agents/          Specialized agents and human actions
+medboard/graph/           State, reducers, routing, and LangGraph workflows
+medboard/memory/          Checkpoint and case-history persistence
+medboard/rag/             Knowledge ingestion, embeddings, and retrieval
+medboard/evaluation/      Metrics, ablations, report generation, CLI
+medboard/ui/              Dashboard views and controls
+data/demo_cases/          Reproducible synthetic cases
+data/benchmarks/          Versioned benchmark labels and RAG questions
+data/knowledge/           Curated public educational summaries
+docs/                     Architecture notes, screenshots, and demo script
+evaluation/results/       Reproducible baseline results
+tests/                    Unit, integration, persistence, UI, and evaluation tests
+```
 
-After retrieval, the critic explicitly accepts or requests revision. Revisions
-return to a supervisor re-plan node and rerun only differential review and the
-critic, with a configurable maximum of two or three cycles. If the limit is
-reached, disagreement remains visible and the graph proceeds to human review
-rather than looping indefinitely.
+## Safety and limitations
 
-Risk assessment runs only after critic acceptance. Transparent deterministic
-rules identify configured neurological, cardiorespiratory, infectious, and
-laboratory red flags; the Risk Agent reports urgency but never creates a final
-diagnosis or final report.
+- The system offers differential considerations, never definitive diagnoses or prescriptions.
+- Deterministic demo behavior is deliberately repeatable and is not clinical validation.
+- The small benchmark cannot establish generalization, accuracy, or real-world safety.
+- Local logs, databases, checkpoints, vector indexes, `.env`, credentials, and patient data
+  are ignored by Git and must not be committed.
+- Every final report states:
 
-## Persistence and human review
+> This output is generated by an experimental AI clinical decision-support system and
+> requires review by a qualified healthcare professional.
 
-Workflow checkpoints and case-history memory are deliberately separate SQLite
-databases. LangGraph checkpoints preserve the exact interrupt position so a run
-can resume after process restart. Case-history memory stores validated snapshots,
-messages, trace events, and human feedback as an auditable application record.
+## Future work
 
-After triage the graph sets `WAITING_FOR_HUMAN` and issues a real LangGraph
-interrupt. Approve is the only action that reaches the Report Agent. Reject
-closes the run without a report. Add-information, request-revision,
-request-specialist, and retry-failed-agent actions rerun only the affected path
-and its downstream dependants before pausing again. Case-history records can be
-listed, reopened, or deleted with cascading removal of their audit rows.
-
-## Safety
-
-Only synthetic, public benchmark, or de-identified cases should be used during
-development. Do not commit `.env`, API keys, patient-identifying data, local
-databases, logs, or vector-store contents.
-
-Every eventual report must include this statement:
-
-> This output is generated by an experimental AI clinical decision-support
-> system and requires review by a qualified healthcare professional.
+- Implement and validate live OpenAI/Gemini structured providers.
+- Add externally reviewed benchmark cases, repeated trials, and clinician-led error analysis.
+- Add validated retry/timeout policies and similar-case retrieval as secondary evidence.
+- Export clinician-approved reports and audit bundles in privacy-preserving formats.
