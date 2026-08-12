@@ -9,11 +9,14 @@ from langgraph.graph.state import CompiledStateGraph
 
 from medboard.agents.history import HistoryAgent
 from medboard.agents.evidence import EvidenceRetrievalAgent
+from medboard.agents.critic import CriticAgent
 from medboard.agents.differential import DifferentialAgent
 from medboard.agents.laboratory import LaboratoryAgent
 from medboard.agents.medication import MedicationAgent
 from medboard.agents.supervisor import SupervisorAgent
 from medboard.agents.symptoms import SymptomAgent
+from medboard.agents.risk import RiskAgent
+from medboard.agents.revision import revise_differential, supervisor_revision
 from medboard.agents.specialists import (
     CardiologyAgent,
     InfectiousDiseaseAgent,
@@ -50,6 +53,7 @@ def build_initial_workflow(provider: StructuredModelProvider) -> CompiledStateGr
 def build_collaboration_workflow(
     provider: StructuredModelProvider,
     knowledge_store: KnowledgeStore | None = None,
+    max_revisions: int | None = None,
 ) -> CompiledStateGraph:
     """Compile intake, differential reasoning, and conditional specialist review."""
     builder = StateGraph(MedicalCaseState)
@@ -68,6 +72,12 @@ def build_collaboration_workflow(
             "evidence_retrieval",
             EvidenceRetrievalAgent(provider, knowledge_store),
         )
+    if max_revisions is not None:
+        builder.add_node("critic", CriticAgent(provider, max_revisions))
+        builder.add_node("supervisor_revision", supervisor_revision)
+        builder.add_node("differential_revision", revise_differential)
+        builder.add_node("risk", RiskAgent(provider))
+        builder.add_node("review_complete", _complete_review)
     builder.add_node("collaboration_complete", _complete_collaboration)
 
     builder.add_edge(START, "supervisor")
@@ -93,7 +103,15 @@ def build_collaboration_workflow(
         )
     if knowledge_store is not None:
         builder.add_edge("evidence_retrieval", "collaboration_complete")
-    builder.add_edge("collaboration_complete", END)
+    if max_revisions is None:
+        builder.add_edge("collaboration_complete", END)
+    else:
+        builder.add_edge("collaboration_complete", "critic")
+        builder.add_conditional_edges("critic", _route_critic_decision)
+        builder.add_edge("supervisor_revision", "differential_revision")
+        builder.add_edge("differential_revision", "critic")
+        builder.add_edge("risk", "review_complete")
+        builder.add_edge("review_complete", END)
     return builder.compile()
 
 
@@ -120,6 +138,16 @@ def _route_selected_specialists(
         for specialist in selected
         if specialist in allowed
     ]
+
+
+CriticRoute = Literal["supervisor_revision", "risk"]
+
+
+def _route_critic_decision(state: MedicalCaseState) -> CriticRoute:
+    review = state.get("critic_review")
+    if review is not None and review.decision.value == "revise":
+        return "supervisor_revision"
+    return "risk"
 
 
 def _complete_workflow(state: MedicalCaseState) -> dict[str, list[TraceEvent]]:
@@ -164,4 +192,27 @@ def _complete_collaboration(state: MedicalCaseState) -> dict[str, object]:
                 },
             )
         ],
+    }
+
+
+def _complete_review(state: MedicalCaseState) -> dict[str, object]:
+    validate_state(state)
+    triage = state.get("triage_result")
+    critic_review = state.get("critic_review")
+    return {
+        "execution_trace": [
+            TraceEvent(
+                event_type=TraceEventType.WORKFLOW_COMPLETED,
+                agent="workflow",
+                status=AgentStatus.COMPLETED,
+                details={
+                    "revision_count": state.get("revision_count", 0),
+                    "critic_decision": critic_review.decision.value if critic_review else None,
+                    "triage_level": triage.triage_level.value if triage else None,
+                    "unresolved_contradictions": len(
+                        [item for item in state["contradictions"] if not item.resolved]
+                    ),
+                },
+            )
+        ]
     }

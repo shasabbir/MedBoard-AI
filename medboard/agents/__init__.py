@@ -3,11 +3,13 @@
 from medboard.agents.base import BaseAgent
 from medboard.agents.differential import DifferentialAgent
 from medboard.agents.evidence import EvidenceRetrievalAgent
+from medboard.agents.critic import CriticAgent
 from medboard.agents.history import HistoryAgent
 from medboard.agents.laboratory import LaboratoryAgent
 from medboard.agents.medication import MedicationAgent
 from medboard.agents.supervisor import SupervisorAgent
 from medboard.agents.symptoms import SymptomAgent
+from medboard.agents.risk import RiskAgent
 from medboard.agents.specialists import (
     CardiologyAgent,
     InfectiousDiseaseAgent,
@@ -19,6 +21,7 @@ __all__ = [
     "HistoryAgent",
     "DifferentialAgent",
     "EvidenceRetrievalAgent",
+    "CriticAgent",
     "LaboratoryAgent",
     "MedicationAgent",
     "SupervisorAgent",
@@ -26,4 +29,5 @@ __all__ = [
     "CardiologyAgent",
     "NeurologyAgent",
     "InfectiousDiseaseAgent",
+    "RiskAgent",
 ]

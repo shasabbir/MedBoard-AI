@@ -9,6 +9,7 @@ from medboard.models import (
     AgentError,
     AgentMessage,
     Contradiction,
+    CriticReview,
     Evidence,
     EvidenceQuestion,
     MissingInformationRequest,
@@ -61,6 +62,12 @@ def merge_contradictions(
     current: list[Contradiction], update: list[Contradiction]
 ) -> list[Contradiction]:
     return merge_records(current, update, lambda item: item.contradiction_id)
+
+
+def merge_critic_reviews(
+    current: list[CriticReview], update: list[CriticReview]
+) -> list[CriticReview]:
+    return merge_records(current, update, lambda item: item.review_id)
 
 
 def merge_missing_information(

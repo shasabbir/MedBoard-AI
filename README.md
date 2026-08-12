@@ -94,6 +94,19 @@ as a claim of state-of-the-art semantic retrieval. Its retrieval quality is
 covered by deterministic tests and can later be replaced behind the store
 boundary.
 
+## Red-team review and triage
+
+After retrieval, the critic explicitly accepts or requests revision. Revisions
+return to a supervisor re-plan node and rerun only differential review and the
+critic, with a configurable maximum of two or three cycles. If the limit is
+reached, disagreement remains visible and the graph proceeds to human review
+rather than looping indefinitely.
+
+Risk assessment runs only after critic acceptance. Transparent deterministic
+rules identify configured neurological, cardiorespiratory, infectious, and
+laboratory red flags; the Risk Agent reports urgency but never creates a final
+diagnosis or final report.
+
 ## Safety
 
 Only synthetic, public benchmark, or de-identified cases should be used during

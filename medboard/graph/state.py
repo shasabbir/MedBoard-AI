@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 
 from medboard.graph.reducers import (
     merge_contradictions,
+    merge_critic_reviews,
     merge_errors,
     merge_evidence,
     merge_evidence_questions,
@@ -80,6 +81,7 @@ class MedicalCaseState(TypedDict):
     retrieved_evidence: Annotated[list[RetrievedEvidence], merge_retrieved_evidence]
     evidence_retrieval_analysis: NotRequired[EvidenceRetrievalAnalysis | None]
     critic_review: NotRequired[CriticReview | None]
+    critic_reviews: Annotated[list[CriticReview], merge_critic_reviews]
     triage_result: NotRequired[TriageResult | None]
     revision_count: NotRequired[int]
     human_review: NotRequired[HumanReview]
@@ -113,6 +115,7 @@ class MedicalCaseSnapshot(ContractModel):
     retrieved_evidence: list[RetrievedEvidence] = Field(default_factory=list)
     evidence_retrieval_analysis: EvidenceRetrievalAnalysis | None = None
     critic_review: CriticReview | None = None
+    critic_reviews: list[CriticReview] = Field(default_factory=list)
     triage_result: TriageResult | None = None
     revision_count: int = Field(default=0, ge=0, le=3)
     human_review: HumanReview = Field(default_factory=HumanReview)

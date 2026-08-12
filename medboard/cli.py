@@ -47,7 +47,11 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
 
     knowledge_store = KnowledgeStore(active_settings.chroma_persist_directory)
     knowledge_store.ingest_directory(active_settings.knowledge_directory)
-    graph = build_collaboration_workflow(DemoModelProvider(), knowledge_store)
+    graph = build_collaboration_workflow(
+        DemoModelProvider(),
+        knowledge_store,
+        max_revisions=active_settings.max_revisions,
+    )
     result = graph.invoke(initial_state)
     snapshot = validate_state(result)
 
@@ -75,6 +79,12 @@ def _print_trace(snapshot: MedicalCaseSnapshot) -> None:
     print(
         f"RAG: {len(snapshot.evidence_questions)} questions, "
         f"{len(snapshot.retrieved_evidence)} retrieved chunks"
+    )
+    critic_decision = snapshot.critic_review.decision.value if snapshot.critic_review else "none"
+    triage_level = snapshot.triage_result.triage_level.value if snapshot.triage_result else "none"
+    print(
+        f"REVIEW: critic={critic_decision}, revisions={snapshot.revision_count}, "
+        f"triage={triage_level}"
     )
     print("EXECUTION TRACE")
     for event in snapshot.execution_trace:
