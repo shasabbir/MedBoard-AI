@@ -16,6 +16,7 @@ dependencies = [
     "pypdf>=5.0,<7",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.9,<3",
+    "streamlit>=1.48,<2",
 ]
 
 [project.scripts]
@@ -28,9 +29,6 @@ workflow = [
 providers = [
     "google-genai>=1.0,<2",
     "openai>=2.0,<3",
-]
-ui = [
-    "streamlit>=1.48,<2",
 ]
 dev = [
     "flake8>=7.3,<8",
@@ -54,7 +52,15 @@ strict = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["chromadb", "chromadb.*", "langgraph", "langgraph.*", "pypdf"]
+module = [
+    "chromadb",
+    "chromadb.*",
+    "langgraph",
+    "langgraph.*",
+    "pypdf",
+    "streamlit",
+    "streamlit.*",
+]
 follow_imports = "skip"
 
 [tool.coverage.run]

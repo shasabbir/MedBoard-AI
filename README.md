@@ -25,7 +25,7 @@ Runtime integrations are separated by concern so each milestone installs only
 what it uses:
 
 ```powershell
-python -m pip install -e ".[workflow,providers,ui,dev]"
+python -m pip install -e ".[workflow,providers,dev]"
 ```
 
 Chroma publishes wheels for standard CPython distributions. Environments that
@@ -79,6 +79,17 @@ medboard --case data/demo_cases/infectious.json
 The CLI prints the selected specialists, structured execution trace,
 evidence/message totals, approximate demo token usage, and zero demo cost. Add
 `--json` to inspect the complete validated state and routing reasons.
+
+Launch the interactive application with:
+
+```powershell
+streamlit run app.py
+```
+
+The dashboard exposes case entry, agent status and workflow graph, differential
+reasoning, routing explanations, disagreements, RAG chunks and public sources,
+messages, execution trace, token/cost totals, persisted case history, human
+review controls, and the approval-gated final report.
 
 ## Local evidence retrieval
 
