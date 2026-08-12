@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     gemini_model: str | None = None
 
     database_path: Path = Path("data/medboard.db")
+    workflow_checkpoint_path: Path = Path("data/workflow_checkpoints.db")
     chroma_persist_directory: Path = Path("data/chroma")
     knowledge_directory: Path = Path("data/knowledge")
     demo_cases_directory: Path = Path("data/demo_cases")
@@ -100,6 +101,7 @@ class Settings(BaseSettings):
         """Create only the local directories needed by application runtime state."""
         directories = {
             self.database_path.parent,
+            self.workflow_checkpoint_path.parent,
             self.chroma_persist_directory,
             self.knowledge_directory,
             self.demo_cases_directory,

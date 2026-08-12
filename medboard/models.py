@@ -82,6 +82,17 @@ class HumanStatus(StrEnum):
     REJECTED = "rejected"
     MORE_INFORMATION = "more_information"
     REQUEST_REVISION = "request_revision"
+    REQUEST_SPECIALIST = "request_specialist"
+    RETRY_FAILED_AGENT = "retry_failed_agent"
+
+
+class HumanAction(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
+    ADD_INFORMATION = "add_information"
+    REQUEST_REVISION = "request_revision"
+    REQUEST_SPECIALIST = "request_specialist"
+    RETRY_FAILED_AGENT = "retry_failed_agent"
 
 
 class CriticDecision(StrEnum):
@@ -513,6 +524,27 @@ class HumanReview(ContractModel):
     @classmethod
     def normalize_updated_at(cls, value: datetime) -> datetime:
         return _as_utc(value)
+
+
+class HumanReviewCommand(ContractModel):
+    """Validated payload used to resume the human-review interrupt."""
+
+    action: HumanAction
+    feedback: str | None = None
+    reviewer: str | None = None
+    added_information: dict[str, JsonValue] = Field(default_factory=dict)
+    requested_specialist: str | None = None
+    failed_agent: str | None = None
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> Self:
+        if self.action is HumanAction.ADD_INFORMATION and not self.added_information:
+            raise ValueError("add_information requires added_information")
+        if self.action is HumanAction.REQUEST_SPECIALIST and not self.requested_specialist:
+            raise ValueError("request_specialist requires requested_specialist")
+        if self.action is HumanAction.RETRY_FAILED_AGENT and not self.failed_agent:
+            raise ValueError("retry_failed_agent requires failed_agent")
+        return self
 
 
 class FinalReport(ContractModel):

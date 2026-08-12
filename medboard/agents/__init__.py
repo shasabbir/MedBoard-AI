@@ -10,6 +10,7 @@ from medboard.agents.medication import MedicationAgent
 from medboard.agents.supervisor import SupervisorAgent
 from medboard.agents.symptoms import SymptomAgent
 from medboard.agents.risk import RiskAgent
+from medboard.agents.reporter import ReporterAgent
 from medboard.agents.specialists import (
     CardiologyAgent,
     InfectiousDiseaseAgent,
@@ -30,4 +31,5 @@ __all__ = [
     "NeurologyAgent",
     "InfectiousDiseaseAgent",
     "RiskAgent",
+    "ReporterAgent",
 ]

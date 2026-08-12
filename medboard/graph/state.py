@@ -34,6 +34,7 @@ from medboard.models import (
     FinalReport,
     HistoryFindings,
     HumanReview,
+    HumanReviewCommand,
     HumanStatus,
     LaboratoryFindings,
     MedicalCaseInput,
@@ -85,6 +86,8 @@ class MedicalCaseState(TypedDict):
     triage_result: NotRequired[TriageResult | None]
     revision_count: NotRequired[int]
     human_review: NotRequired[HumanReview]
+    human_command: NotRequired[HumanReviewCommand | None]
+    human_added_information: NotRequired[dict[str, Any]]
     final_report: NotRequired[FinalReport | None]
     agent_messages: Annotated[list[AgentMessage], merge_messages]
     errors: Annotated[list[AgentError], merge_errors]
@@ -119,6 +122,8 @@ class MedicalCaseSnapshot(ContractModel):
     triage_result: TriageResult | None = None
     revision_count: int = Field(default=0, ge=0, le=3)
     human_review: HumanReview = Field(default_factory=HumanReview)
+    human_command: HumanReviewCommand | None = None
+    human_added_information: dict[str, Any] = Field(default_factory=dict)
     final_report: FinalReport | None = None
     agent_messages: list[AgentMessage] = Field(default_factory=list)
     errors: list[AgentError] = Field(default_factory=list)
@@ -287,4 +292,5 @@ def create_initial_state(
 
 def validate_state(state: MedicalCaseState | dict[str, Any]) -> MedicalCaseSnapshot:
     """Validate graph state before checkpointing, persistence, or report generation."""
-    return MedicalCaseSnapshot.model_validate(state)
+    clean_state = {key: value for key, value in state.items() if not key.startswith("__")}
+    return MedicalCaseSnapshot.model_validate(clean_state)

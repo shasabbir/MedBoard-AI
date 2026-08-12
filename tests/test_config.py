@@ -49,6 +49,7 @@ def test_runtime_directories_are_created(tmp_path: Path) -> None:
     settings = Settings(
         _env_file=None,
         database_path=tmp_path / "database" / "medboard.db",
+        workflow_checkpoint_path=tmp_path / "checkpoints" / "workflow.db",
         chroma_persist_directory=tmp_path / "chroma",
         knowledge_directory=tmp_path / "knowledge",
         demo_cases_directory=tmp_path / "cases",
@@ -58,6 +59,7 @@ def test_runtime_directories_are_created(tmp_path: Path) -> None:
     settings.ensure_runtime_directories()
 
     assert settings.database_path.parent.is_dir()
+    assert settings.workflow_checkpoint_path.parent.is_dir()
     assert settings.chroma_persist_directory.is_dir()
     assert settings.knowledge_directory.is_dir()
     assert settings.demo_cases_directory.is_dir()

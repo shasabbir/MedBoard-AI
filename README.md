@@ -107,6 +107,20 @@ rules identify configured neurological, cardiorespiratory, infectious, and
 laboratory red flags; the Risk Agent reports urgency but never creates a final
 diagnosis or final report.
 
+## Persistence and human review
+
+Workflow checkpoints and case-history memory are deliberately separate SQLite
+databases. LangGraph checkpoints preserve the exact interrupt position so a run
+can resume after process restart. Case-history memory stores validated snapshots,
+messages, trace events, and human feedback as an auditable application record.
+
+After triage the graph sets `WAITING_FOR_HUMAN` and issues a real LangGraph
+interrupt. Approve is the only action that reaches the Report Agent. Reject
+closes the run without a report. Add-information, request-revision,
+request-specialist, and retry-failed-agent actions rerun only the affected path
+and its downstream dependants before pausing again. Case-history records can be
+listed, reopened, or deleted with cascading removal of their audit rows.
+
 ## Safety
 
 Only synthetic, public benchmark, or de-identified cases should be used during

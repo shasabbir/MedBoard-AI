@@ -164,9 +164,13 @@ class DifferentialAgent(BaseAgent):
         referenced_evidence = _unique(
             [item for diagnosis in diagnoses for item in diagnosis.supporting_evidence_ids]
         )
+        prior_differential_questions = sum(
+            question.asked_by == self.name for question in state["evidence_questions"]
+        )
+        revision_suffix = f"-C{prior_differential_questions + 1}"
         evidence_questions = [
             EvidenceQuestion(
-                question_id=f"Q-DIFFERENTIAL-{index:03d}",
+                question_id=f"Q-DIFFERENTIAL-{index:03d}{revision_suffix}",
                 asked_by=self.name,
                 question=(
                     "What source-backed evidence is relevant when evaluating "
@@ -183,7 +187,7 @@ class DifferentialAgent(BaseAgent):
             "evidence_questions": evidence_questions,
             "missing_information": [
                 MissingInformationRequest(
-                    request_id=f"REQ-DIFFERENTIAL-{index:03d}",
+                    request_id=f"REQ-DIFFERENTIAL-{index:03d}{revision_suffix}",
                     information_needed=item,
                     requested_by=[self.name],
                     reason="This information could distinguish competing considerations.",

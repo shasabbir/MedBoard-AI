@@ -12,6 +12,7 @@ authors = [{ name = "MedBoard AI contributors" }]
 dependencies = [
     "chromadb>=1.0,<2",
     "langgraph>=1.0,<2",
+    "langgraph-checkpoint-sqlite>=3.0,<4",
     "pypdf>=5.0,<7",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.9,<3",
