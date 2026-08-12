@@ -9,6 +9,7 @@ from medboard.graph.state import MedicalCaseState
 from medboard.models import (
     AgentMessage,
     DifferentialDiagnosis,
+    EvidenceQuestion,
     MessageType,
     MissingInformationRequest,
     SpecialistOpinion,
@@ -59,6 +60,7 @@ class BaseSpecialistAgent(BaseAgent):
         )
         return {
             "specialist_opinions": [opinion],
+            "evidence_questions": [self.build_evidence_question(opinion)],
             "missing_information": [
                 MissingInformationRequest(
                     information_needed=item,
@@ -72,9 +74,33 @@ class BaseSpecialistAgent(BaseAgent):
             "token_usage": [result.usage],
         }
 
+    def build_evidence_question(self, opinion: SpecialistOpinion) -> EvidenceQuestion:
+        hypothesis_ids = list(
+            dict.fromkeys(
+                [*opinion.supported_hypotheses, *opinion.challenged_hypotheses]
+            )
+        )
+        return EvidenceQuestion(
+            question_id=f"Q-{self.name.upper().replace('_', '-')}-001",
+            asked_by=self.name,
+            question=self.specialist_question(),
+            hypothesis_ids=hypothesis_ids,
+            evidence_ids=opinion.evidence_ids,
+        )
+
+    @abstractmethod
+    def specialist_question(self) -> str:
+        """Return the focused question sent to the evidence-retrieval agent."""
+
 
 class CardiologyAgent(BaseSpecialistAgent):
     name = "cardiology"
+
+    def specialist_question(self) -> str:
+        return (
+            "What guideline evidence supports structured evaluation of chest symptoms, "
+            "dyspnea, and possible cardiac causes?"
+        )
 
     def build_opinion(self, state: MedicalCaseState) -> SpecialistOpinion:
         diagnoses = state["differential_diagnoses"]
@@ -113,6 +139,12 @@ class CardiologyAgent(BaseSpecialistAgent):
 class NeurologyAgent(BaseSpecialistAgent):
     name = "neurology"
 
+    def specialist_question(self) -> str:
+        return (
+            "What authoritative evidence describes urgent evaluation of sudden confusion, "
+            "headache, or unilateral weakness for possible stroke?"
+        )
+
     def build_opinion(self, state: MedicalCaseState) -> SpecialistOpinion:
         symptoms = _symptoms(state)
         evidence_ids = _evidence_ids(
@@ -141,6 +173,12 @@ class NeurologyAgent(BaseSpecialistAgent):
 
 class InfectiousDiseaseAgent(BaseSpecialistAgent):
     name = "infectious_disease"
+
+    def specialist_question(self) -> str:
+        return (
+            "What authoritative evidence describes fever, cough, and inflammatory findings "
+            "in respiratory infection or pneumonia assessment?"
+        )
 
     def build_opinion(self, state: MedicalCaseState) -> SpecialistOpinion:
         evidence_ids = _evidence_ids(state, names={"fever", "cough", "wbc"})

@@ -220,6 +220,7 @@ class AgentMessage(ContractModel):
     message_type: MessageType
     content: NonEmptyString
     evidence_ids: list[str] = Field(default_factory=list)
+    retrieval_ids: list[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=utc_now)
 
     @field_validator("message_id")
@@ -235,6 +236,14 @@ class AgentMessage(ContractModel):
         unique = _unique_strings(values)
         if any(not value.startswith("EV-") for value in unique):
             raise ValueError("message evidence references must start with 'EV-'")
+        return unique
+
+    @field_validator("retrieval_ids")
+    @classmethod
+    def validate_message_retrievals(cls, values: list[str]) -> list[str]:
+        unique = _unique_strings(values)
+        if any(not value.startswith("RAG-") for value in unique):
+            raise ValueError("message retrieval references must start with 'RAG-'")
         return unique
 
     @field_validator("timestamp")
@@ -334,6 +343,36 @@ class DifferentialAnalysis(ContractModel):
     output: AgentOutput
 
 
+class EvidenceQuestion(ContractModel):
+    """A source-retrieval question produced from an agent's clinical reasoning."""
+
+    question_id: str = Field(default_factory=lambda: new_id("Q"), frozen=True)
+    asked_by: NonEmptyString
+    question: NonEmptyString
+    hypothesis_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("question_id")
+    @classmethod
+    def validate_question_id(cls, value: str) -> str:
+        if not value.startswith("Q-"):
+            raise ValueError("question_id must start with 'Q-'")
+        return value
+
+    @field_validator("hypothesis_ids", "evidence_ids")
+    @classmethod
+    def question_references_are_unique(cls, values: list[str]) -> list[str]:
+        return _unique_strings(values)
+
+    @model_validator(mode="after")
+    def validate_question_reference_prefixes(self) -> Self:
+        if any(not value.startswith("HYP-") for value in self.hypothesis_ids):
+            raise ValueError("question hypothesis references must start with 'HYP-'")
+        if any(not value.startswith("EV-") for value in self.evidence_ids):
+            raise ValueError("question evidence references must start with 'EV-'")
+        return self
+
+
 class SpecialistOpinion(ContractModel):
     opinion_id: str = Field(default_factory=lambda: new_id("OPN"), frozen=True)
     specialist: NonEmptyString
@@ -387,12 +426,28 @@ class SpecialistRoutingDecision(ContractModel):
 
 class RetrievedEvidence(ContractModel):
     retrieval_id: str = Field(default_factory=lambda: new_id("RAG"), frozen=True)
+    question_id: str
+    chunk_id: NonEmptyString
     document: NonEmptyString
     source: NonEmptyString
     section: NonEmptyString
     retrieved_text: NonEmptyString
     similarity_score: ConfidenceScore
     source_url: str | None = None
+
+    @field_validator("question_id")
+    @classmethod
+    def validate_retrieval_question_id(cls, value: str) -> str:
+        if not value.startswith("Q-"):
+            raise ValueError("retrieval question_id must start with 'Q-'")
+        return value
+
+
+class EvidenceRetrievalAnalysis(ContractModel):
+    """Retrieval-agent envelope containing source-backed chunks."""
+
+    results: list[RetrievedEvidence] = Field(default_factory=list)
+    output: AgentOutput
 
 
 class Contradiction(ContractModel):

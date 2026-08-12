@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "MedBoard AI contributors" }]
 dependencies = [
+    "chromadb>=1.0,<2",
     "langgraph>=1.0,<2",
+    "pypdf>=5.0,<7",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.9,<3",
 ]
@@ -28,9 +30,6 @@ providers = [
 ]
 ui = [
     "streamlit>=1.48,<2",
-]
-rag = [
-    "chromadb>=1.0,<2",
 ]
 dev = [
     "flake8>=7.3,<8",
@@ -54,7 +53,7 @@ strict = true
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["langgraph", "langgraph.*"]
+module = ["chromadb", "chromadb.*", "langgraph", "langgraph.*", "pypdf"]
 follow_imports = "skip"
 
 [tool.coverage.run]

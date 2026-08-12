@@ -2,6 +2,7 @@
 
 from medboard.agents.base import BaseAgent
 from medboard.agents.differential import DifferentialAgent
+from medboard.agents.evidence import EvidenceRetrievalAgent
 from medboard.agents.history import HistoryAgent
 from medboard.agents.laboratory import LaboratoryAgent
 from medboard.agents.medication import MedicationAgent
@@ -17,6 +18,7 @@ __all__ = [
     "BaseAgent",
     "HistoryAgent",
     "DifferentialAgent",
+    "EvidenceRetrievalAgent",
     "LaboratoryAgent",
     "MedicationAgent",
     "SupervisorAgent",

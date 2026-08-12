@@ -25,7 +25,7 @@ Runtime integrations are separated by concern so each milestone installs only
 what it uses:
 
 ```powershell
-python -m pip install -e ".[workflow,providers,ui,rag,dev]"
+python -m pip install -e ".[workflow,providers,ui,dev]"
 ```
 
 Chroma publishes wheels for standard CPython distributions. Environments that
@@ -79,6 +79,20 @@ medboard --case data/demo_cases/infectious.json
 The CLI prints the selected specialists, structured execution trace,
 evidence/message totals, approximate demo token usage, and zero demo cost. Add
 `--json` to inspect the complete validated state and routing reasons.
+
+## Local evidence retrieval
+
+Curated educational summaries in `data/knowledge` include explicit source
+metadata and public URLs. At startup, the CLI parses and chunks Markdown, text,
+or PDF documents, creates deterministic local embeddings, and upserts them into
+the persistent Chroma index. Differential and selected-specialist questions are
+searched independently; every result retains its question ID, chunk ID,
+document, organization, section, excerpt, similarity score, and source URL.
+
+The local hashing embedder is intended for reliable offline demonstrations, not
+as a claim of state-of-the-art semantic retrieval. Its retrieval quality is
+covered by deterministic tests and can later be replaced behind the store
+boundary.
 
 ## Safety
 

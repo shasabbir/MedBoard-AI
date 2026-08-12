@@ -12,6 +12,7 @@ from medboard.graph.workflow import build_collaboration_workflow
 from medboard.models import MedicalCaseInput
 from medboard.observability import get_logger, log_event, setup_logging
 from medboard.providers import DemoModelProvider
+from medboard.rag.store import KnowledgeStore
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,7 +45,9 @@ def main(argv: Sequence[str] | None = None, settings: Settings | None = None) ->
     initial_state = create_initial_state(case)
     log_event(logger, "case_run_started", run_id=initial_state["run_id"], case_id=case.case_id)
 
-    graph = build_collaboration_workflow(DemoModelProvider())
+    knowledge_store = KnowledgeStore(active_settings.chroma_persist_directory)
+    knowledge_store.ingest_directory(active_settings.knowledge_directory)
+    graph = build_collaboration_workflow(DemoModelProvider(), knowledge_store)
     result = graph.invoke(initial_state)
     snapshot = validate_state(result)
 
@@ -69,6 +72,10 @@ def _print_trace(snapshot: MedicalCaseSnapshot) -> None:
     routed = ", ".join(snapshot.selected_specialists) or "none"
     print(f"SELECTED SPECIALISTS: {routed}")
     print(f"DIFFERENTIAL CONSIDERATIONS: {len(snapshot.differential_diagnoses)}")
+    print(
+        f"RAG: {len(snapshot.evidence_questions)} questions, "
+        f"{len(snapshot.retrieved_evidence)} retrieved chunks"
+    )
     print("EXECUTION TRACE")
     for event in snapshot.execution_trace:
         duration = f" | {event.duration_ms:.2f} ms" if event.duration_ms is not None else ""

@@ -10,6 +10,7 @@ from medboard.graph.reducers import (
     merge_contradictions,
     merge_errors,
     merge_evidence,
+    merge_evidence_questions,
     merge_messages,
     merge_missing_information,
     merge_retrieved_evidence,
@@ -27,6 +28,8 @@ from medboard.models import (
     DifferentialDiagnosis,
     DifferentialAnalysis,
     Evidence,
+    EvidenceQuestion,
+    EvidenceRetrievalAnalysis,
     FinalReport,
     HistoryFindings,
     HumanReview,
@@ -60,6 +63,7 @@ class MedicalCaseState(TypedDict):
     laboratory_findings: NotRequired[LaboratoryFindings | None]
     medication_findings: NotRequired[MedicationFindings | None]
     evidence: Annotated[list[Evidence], merge_evidence]
+    evidence_questions: Annotated[list[EvidenceQuestion], merge_evidence_questions]
     contradictions: Annotated[list[Contradiction], merge_contradictions]
     missing_information: Annotated[
         list[MissingInformationRequest], merge_missing_information
@@ -74,6 +78,7 @@ class MedicalCaseState(TypedDict):
         list[SpecialistOpinion], merge_specialist_opinions
     ]
     retrieved_evidence: Annotated[list[RetrievedEvidence], merge_retrieved_evidence]
+    evidence_retrieval_analysis: NotRequired[EvidenceRetrievalAnalysis | None]
     critic_review: NotRequired[CriticReview | None]
     triage_result: NotRequired[TriageResult | None]
     revision_count: NotRequired[int]
@@ -97,6 +102,7 @@ class MedicalCaseSnapshot(ContractModel):
     laboratory_findings: LaboratoryFindings | None = None
     medication_findings: MedicationFindings | None = None
     evidence: list[Evidence] = Field(default_factory=list)
+    evidence_questions: list[EvidenceQuestion] = Field(default_factory=list)
     contradictions: list[Contradiction] = Field(default_factory=list)
     missing_information: list[MissingInformationRequest] = Field(default_factory=list)
     differential_diagnoses: list[DifferentialDiagnosis] = Field(default_factory=list)
@@ -105,6 +111,7 @@ class MedicalCaseSnapshot(ContractModel):
     routing_decisions: list[SpecialistRoutingDecision] = Field(default_factory=list)
     specialist_opinions: list[SpecialistOpinion] = Field(default_factory=list)
     retrieved_evidence: list[RetrievedEvidence] = Field(default_factory=list)
+    evidence_retrieval_analysis: EvidenceRetrievalAnalysis | None = None
     critic_review: CriticReview | None = None
     triage_result: TriageResult | None = None
     revision_count: int = Field(default=0, ge=0, le=3)
@@ -158,6 +165,8 @@ class MedicalCaseSnapshot(ContractModel):
             references.append((decision.routing_id, decision.evidence_ids))
         for opinion in self.specialist_opinions:
             references.append((opinion.opinion_id, opinion.evidence_ids))
+        for question in self.evidence_questions:
+            references.append((question.question_id, question.evidence_ids))
         for message in self.agent_messages:
             references.append((message.message_id, message.evidence_ids))
         for request in self.missing_information:
@@ -179,6 +188,41 @@ class MedicalCaseSnapshot(ContractModel):
         known_hypotheses = {
             diagnosis.hypothesis_id for diagnosis in self.differential_diagnoses
         }
+        for question in self.evidence_questions:
+            unknown_question_hypotheses = set(question.hypothesis_ids) - known_hypotheses
+            if unknown_question_hypotheses:
+                raise ValueError(
+                    "evidence questions reference unknown hypotheses: "
+                    f"{sorted(unknown_question_hypotheses)}"
+                )
+        known_questions = {question.question_id for question in self.evidence_questions}
+        unknown_result_questions = {
+            result.question_id
+            for result in self.retrieved_evidence
+            if result.question_id not in known_questions
+        }
+        if unknown_result_questions:
+            raise ValueError(
+                "retrieval results reference unknown questions: "
+                f"{sorted(unknown_result_questions)}"
+            )
+        known_retrievals = {result.retrieval_id for result in self.retrieved_evidence}
+        unknown_message_retrievals = {
+            retrieval_id
+            for message in self.agent_messages
+            for retrieval_id in message.retrieval_ids
+            if retrieval_id not in known_retrievals
+        }
+        if unknown_message_retrievals:
+            raise ValueError(
+                "messages reference unknown retrieval results: "
+                f"{sorted(unknown_message_retrievals)}"
+            )
+        if (
+            self.evidence_retrieval_analysis is not None
+            and self.evidence_retrieval_analysis.results != self.retrieved_evidence
+        ):
+            raise ValueError("retrieval analysis and state results must match")
         for opinion in self.specialist_opinions:
             if opinion.specialist not in self.selected_specialists:
                 raise ValueError(

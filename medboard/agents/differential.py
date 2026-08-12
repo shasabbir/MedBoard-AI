@@ -12,6 +12,7 @@ from medboard.models import (
     DifferentialAnalysis,
     DifferentialDiagnosis,
     Evidence,
+    EvidenceQuestion,
     MessageType,
     MissingInformationRequest,
 )
@@ -163,9 +164,23 @@ class DifferentialAgent(BaseAgent):
         referenced_evidence = _unique(
             [item for diagnosis in diagnoses for item in diagnosis.supporting_evidence_ids]
         )
+        evidence_questions = [
+            EvidenceQuestion(
+                question_id=f"Q-DIFFERENTIAL-{index:03d}",
+                asked_by=self.name,
+                question=(
+                    "What source-backed evidence is relevant when evaluating "
+                    f"{diagnosis.hypothesis}?"
+                ),
+                hypothesis_ids=[diagnosis.hypothesis_id],
+                evidence_ids=diagnosis.supporting_evidence_ids,
+            )
+            for index, diagnosis in enumerate(diagnoses, start=1)
+        ]
         return {
             "differential_analysis": result.output,
             "differential_diagnoses": result.output.diagnoses,
+            "evidence_questions": evidence_questions,
             "missing_information": [
                 MissingInformationRequest(
                     request_id=f"REQ-DIFFERENTIAL-{index:03d}",

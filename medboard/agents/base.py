@@ -60,10 +60,9 @@ class BaseAgent(ABC):
             }
 
         duration_ms = (perf_counter() - started) * 1_000
-        trace = list(update.get("execution_trace", []))
+        trace = [start_event, *list(update.get("execution_trace", []))]
         trace.extend(
             [
-                start_event,
                 TraceEvent(
                     event_type=TraceEventType.AGENT_COMPLETED,
                     agent=self.name,

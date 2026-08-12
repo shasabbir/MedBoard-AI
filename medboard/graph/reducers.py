@@ -10,6 +10,7 @@ from medboard.models import (
     AgentMessage,
     Contradiction,
     Evidence,
+    EvidenceQuestion,
     MissingInformationRequest,
     RetrievedEvidence,
     SpecialistRoutingDecision,
@@ -42,6 +43,12 @@ def merge_records(
 
 def merge_evidence(current: list[Evidence], update: list[Evidence]) -> list[Evidence]:
     return merge_records(current, update, lambda item: item.evidence_id)
+
+
+def merge_evidence_questions(
+    current: list[EvidenceQuestion], update: list[EvidenceQuestion]
+) -> list[EvidenceQuestion]:
+    return merge_records(current, update, lambda item: item.question_id)
 
 
 def merge_messages(
