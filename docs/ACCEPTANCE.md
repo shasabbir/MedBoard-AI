@@ -40,6 +40,6 @@ hypothesis references.
 
 Passing this gate establishes reproducible prototype behavior, not clinical validation.
 Production use would still require clinician-led external evaluation, privacy/security review,
-regulated quality processes, calibrated provider pricing, provider-specific timeout testing,
-and operational monitoring. Live API tests are intentionally mocked in CI to avoid credentials,
+regulated quality processes, calibrated provider pricing, provider-specific cancellation testing,
+and operational monitoring. Live API tests, including timeout wiring, are intentionally mocked in CI to avoid credentials,
 cost, nondeterminism, and disclosure of synthetic case content to external services.

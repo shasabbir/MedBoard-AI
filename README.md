@@ -216,5 +216,5 @@ tests/                    Unit, integration, persistence, UI, and evaluation tes
 ## Future work
 
 - Add externally reviewed benchmark cases, repeated trials, and clinician-led error analysis.
-- Add provider-specific timeout/cancellation testing and similar-case retrieval as secondary evidence.
+- Add provider-specific cancellation testing and similar-case retrieval as secondary evidence.
 - Export clinician-approved reports and audit bundles in privacy-preserving formats.

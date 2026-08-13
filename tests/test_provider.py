@@ -69,6 +69,7 @@ def test_openai_provider_parses_pydantic_output_and_calculates_cost() -> None:
         client=client,
         input_cost_per_million=2,
         output_cost_per_million=4,
+        timeout_seconds=12.5,
     )
 
     result = provider.generate(
@@ -82,6 +83,7 @@ def test_openai_provider_parses_pydantic_output_and_calculates_cost() -> None:
     assert result.output == expected
     assert result.usage.estimated_cost == pytest.approx(0.0004)
     assert parse_calls[0]["text_format"] is SupervisorPlan
+    assert parse_calls[0]["timeout"] == 12.5
     assert "Workflow context JSON" in str(parse_calls[0]["input"])
     assert "Review history first" not in str(parse_calls[0]["input"])
 
@@ -102,7 +104,9 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
         )
 
     client = SimpleNamespace(interactions=SimpleNamespace(create=create))
-    provider = GeminiModelProvider("test-key", "test-model", client=client)
+    provider = GeminiModelProvider(
+        "test-key", "test-model", client=client, timeout_seconds=7.0
+    )
 
     result = provider.generate(
         agent="supervisor",
@@ -116,7 +120,19 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     response_format = create_calls[0]["response_format"]
     assert isinstance(response_format, dict)
     assert response_format["mime_type"] == "application/json"
+    assert create_calls[0]["timeout"] == 7.0
     assert "Review history first" not in str(create_calls[0]["input"])
+
+
+@pytest.mark.parametrize("provider_type", [OpenAIModelProvider, GeminiModelProvider])
+def test_live_provider_rejects_nonpositive_timeout(provider_type: type[object]) -> None:
+    with pytest.raises(ValueError, match="timeout must be positive"):
+        provider_type(  # type: ignore[call-arg]
+            "test-key",
+            "test-model",
+            client=object(),
+            timeout_seconds=0,
+        )
 
 
 def test_provider_factory_preserves_demo_default() -> None:

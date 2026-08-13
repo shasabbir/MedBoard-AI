@@ -90,9 +90,12 @@ class OpenAIModelProvider:
         client: Any | None = None,
         input_cost_per_million: float = 0.0,
         output_cost_per_million: float = 0.0,
+        timeout_seconds: float = 60.0,
     ) -> None:
         if not api_key.strip() or not model.strip():
             raise ValueError("OpenAI provider requires an API key and model")
+        if timeout_seconds <= 0:
+            raise ValueError("provider timeout must be positive")
         if client is None:
             from openai import OpenAI
 
@@ -101,6 +104,7 @@ class OpenAIModelProvider:
         self.model_name = model
         self.input_cost_per_million = input_cost_per_million
         self.output_cost_per_million = output_cost_per_million
+        self.timeout_seconds = timeout_seconds
 
     def generate(
         self,
@@ -116,6 +120,7 @@ class OpenAIModelProvider:
             model=self.model_name,
             input=_structured_prompt(agent, prompt, context),
             text_format=response_model,
+            timeout=self.timeout_seconds,
         )
         output = response_model.model_validate(response.output_parsed)
         usage = getattr(response, "usage", None)
@@ -148,9 +153,12 @@ class GeminiModelProvider:
         client: Any | None = None,
         input_cost_per_million: float = 0.0,
         output_cost_per_million: float = 0.0,
+        timeout_seconds: float = 60.0,
     ) -> None:
         if not api_key.strip() or not model.strip():
             raise ValueError("Gemini provider requires an API key and model")
+        if timeout_seconds <= 0:
+            raise ValueError("provider timeout must be positive")
         if client is None:
             from google import genai
 
@@ -159,6 +167,7 @@ class GeminiModelProvider:
         self.model_name = model
         self.input_cost_per_million = input_cost_per_million
         self.output_cost_per_million = output_cost_per_million
+        self.timeout_seconds = timeout_seconds
 
     def generate(
         self,
@@ -178,6 +187,7 @@ class GeminiModelProvider:
                 "mime_type": "application/json",
                 "schema": response_model.model_json_schema(),
             },
+            timeout=self.timeout_seconds,
         )
         response_text = str(interaction.output_text)
         output = response_model.model_validate_json(response_text)
@@ -217,6 +227,7 @@ def build_model_provider(settings: Settings) -> StructuredModelProvider:
     costs = {
         "input_cost_per_million": settings.llm_input_cost_per_million,
         "output_cost_per_million": settings.llm_output_cost_per_million,
+        "timeout_seconds": settings.agent_timeout_seconds,
     }
     if settings.llm_provider is LLMProvider.OPENAI:
         return OpenAIModelProvider(
