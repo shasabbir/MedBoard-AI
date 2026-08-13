@@ -10,13 +10,18 @@ from medboard.agents.history import HistoryAgent
 from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
 from medboard.agents.risk import RiskAgent
+from medboard.agents.reporter import ReporterAgent
 from medboard.models import (
     ContractModel,
+    AgentError,
+    HumanReview,
+    HumanStatus,
     MedicalCaseInput,
     RetrievedEvidence,
     TokenUsage,
     TriageLevel,
     TriageResult,
+    Severity,
 )
 from medboard.providers import DemoModelProvider, ProviderResult
 from medboard.rag.store import KnowledgeStore
@@ -152,3 +157,35 @@ def test_model_cannot_downgrade_deterministic_emergency_triage() -> None:
         triage.recommended_escalation
         == "Immediate emergency clinical assessment is warranted."
     )
+
+
+def test_final_report_explicitly_flags_failed_analysis() -> None:
+    case = MedicalCaseInput(chief_complaint="Synthetic report failure test")
+    state = create_initial_state(case, run_id="RUN-REPORT-LIMITATION")
+    state["human_review"] = HumanReview(status=HumanStatus.APPROVED)
+    state["triage_result"] = TriageResult(
+        triage_level=TriageLevel.ROUTINE,
+        reasoning="No configured red flag was triggered.",
+        recommended_escalation="Use the normal clinical review pathway.",
+    )
+    state["errors"] = [
+        AgentError(
+            agent="evidence_retrieval",
+            error_type="ConnectionError",
+            message="simulated RAG outage",
+            severity=Severity.HIGH,
+        ),
+        AgentError(
+            agent="medication",
+            error_type="ConnectionError",
+            message="simulated provider outage",
+            severity=Severity.HIGH,
+        ),
+    ]
+
+    update = ReporterAgent(DemoModelProvider(), max_retries=0).analyze(state)
+
+    report = update["final_report"]
+    assert report is not None
+    assert any("Evidence retrieval was unavailable" in item for item in report.limitations)
+    assert any("Medication analysis was unavailable" in item for item in report.limitations)

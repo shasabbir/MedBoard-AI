@@ -22,5 +22,9 @@ def render_report(snapshot: MedicalCaseSnapshot) -> None:
         f"{report.triage.triage_level.value.upper()}: "
         f"{report.triage.recommended_escalation}"
     )
+    if report.limitations:
+        st.markdown("#### Analysis limitations")
+        for limitation in report.limitations:
+            st.warning(limitation)
     st.markdown("#### Disclaimer")
     st.error(report.disclaimer)

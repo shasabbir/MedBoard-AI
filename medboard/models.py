@@ -558,6 +558,7 @@ class FinalReport(ContractModel):
     missing_information: list[MissingInformationRequest] = Field(default_factory=list)
     triage: TriageResult
     review_priorities: list[NonEmptyString] = Field(default_factory=list)
+    limitations: list[NonEmptyString] = Field(default_factory=list)
     disclaimer: str = REPORT_DISCLAIMER
 
     @field_validator("disclaimer")
