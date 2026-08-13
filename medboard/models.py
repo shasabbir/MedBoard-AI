@@ -577,6 +577,8 @@ class AgentError(ContractModel):
     severity: Severity = Severity.MEDIUM
     retryable: bool = False
     attempt: int = Field(default=1, ge=1)
+    resolved: bool = False
+    resolution: NonEmptyString | None = None
     timestamp: datetime = Field(default_factory=utc_now)
     details: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -584,6 +586,12 @@ class AgentError(ContractModel):
     @classmethod
     def normalize_timestamp(cls, value: datetime) -> datetime:
         return _as_utc(value)
+
+    @model_validator(mode="after")
+    def resolved_errors_require_resolution(self) -> Self:
+        if self.resolved and self.resolution is None:
+            raise ValueError("resolved errors require a resolution")
+        return self
 
 
 class TraceEvent(ContractModel):

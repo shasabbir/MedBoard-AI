@@ -11,10 +11,13 @@ from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
 from medboard.agents.risk import RiskAgent
 from medboard.agents.reporter import ReporterAgent
+from medboard.agents.human_actions import RetryFailedAgent
 from medboard.models import (
     ContractModel,
     AgentError,
     HumanReview,
+    HumanReviewCommand,
+    HumanAction,
     HumanStatus,
     MedicalCaseInput,
     RetrievedEvidence,
@@ -189,3 +192,30 @@ def test_final_report_explicitly_flags_failed_analysis() -> None:
     assert report is not None
     assert any("Evidence retrieval was unavailable" in item for item in report.limitations)
     assert any("Medication analysis was unavailable" in item for item in report.limitations)
+
+
+def test_successful_manual_retry_resolves_previous_agent_error() -> None:
+    case = MedicalCaseInput(chief_complaint="Synthetic retry resolution test")
+    state = create_initial_state(case, run_id="RUN-RETRY-RESOLVED")
+    state["errors"] = [
+        AgentError(
+            agent="history",
+            error_type="ConnectionError",
+            message="temporary provider outage",
+            severity=Severity.HIGH,
+            retryable=True,
+        )
+    ]
+    state["human_command"] = HumanReviewCommand(
+        action=HumanAction.RETRY_FAILED_AGENT,
+        failed_agent="history",
+    )
+    retry = RetryFailedAgent({"history": HistoryAgent(DemoModelProvider())})
+
+    update = retry(state)
+
+    errors = update["errors"]
+    assert hasattr(errors, "value")
+    resolved = errors.value[0]
+    assert resolved.resolved is True
+    assert resolved.resolution == "Manual retry completed successfully."

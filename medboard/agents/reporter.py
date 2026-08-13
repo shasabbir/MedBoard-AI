@@ -65,7 +65,9 @@ class ReporterAgent(BaseAgent):
 
 def _failure_limitations(state: MedicalCaseState) -> list[str]:
     limitations: list[str] = []
-    failed_agents = {error.agent for error in state["errors"] if error.agent}
+    failed_agents = {
+        error.agent for error in state["errors"] if error.agent and not error.resolved
+    }
     if "evidence_retrieval" in failed_agents:
         limitations.append(
             "Evidence retrieval was unavailable; source-backed evidence is incomplete."

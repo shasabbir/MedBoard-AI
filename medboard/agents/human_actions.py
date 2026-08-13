@@ -138,7 +138,22 @@ class RetryFailedAgent:
         agent = self.agents.get(agent_name)
         if agent is None:
             raise ValueError(f"agent is not retryable: {agent_name}")
-        return agent(state)
+        update = agent(state)
+        if update.get("errors"):
+            return update
+        resolved_errors = [
+            error.model_copy(
+                update={
+                    "resolved": True,
+                    "resolution": "Manual retry completed successfully.",
+                }
+            )
+            if error.agent == agent_name and not error.resolved
+            else error
+            for error in state["errors"]
+        ]
+        update["errors"] = Overwrite(value=resolved_errors)
+        return update
 
 
 def apply_requested_specialist(state: MedicalCaseState) -> dict[str, object]:

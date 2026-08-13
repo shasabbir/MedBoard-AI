@@ -100,7 +100,9 @@ def _agent_statuses(snapshot: MedicalCaseSnapshot) -> dict[str, str]:
         for event in snapshot.execution_trace
         if event.event_type.value == "agent_completed" and event.agent
     }
-    failed = {error.agent for error in snapshot.errors if error.agent}
+    failed = {
+        error.agent for error in snapshot.errors if error.agent and not error.resolved
+    }
     statuses: dict[str, str] = {}
     for agent in [
         "supervisor",
