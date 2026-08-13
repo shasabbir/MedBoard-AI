@@ -23,6 +23,17 @@ class ReporterAgent(BaseAgent):
                 "Generate a structured decision-support case review for clinician review. "
                 "Use non-definitive language and do not prescribe."
             ),
+            context={
+                "case_input": state["case_input"],
+                "evidence": state["evidence"],
+                "differential_diagnoses": state["differential_diagnoses"],
+                "specialist_opinions": state["specialist_opinions"],
+                "retrieved_evidence": state["retrieved_evidence"],
+                "contradictions": state["contradictions"],
+                "missing_information": state["missing_information"],
+                "triage": triage,
+                "human_review": human_review,
+            },
             response_model=FinalReport,
             demo_factory=lambda: FinalReport(
                 case_summary=state["case_input"].chief_complaint,

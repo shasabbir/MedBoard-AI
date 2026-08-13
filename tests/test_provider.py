@@ -19,6 +19,7 @@ def test_demo_provider_returns_validated_output_and_zero_cost_usage() -> None:
     result = provider.generate(
         agent="supervisor",
         prompt="Create a plan",
+        context={"case_input": {"chief_complaint": "Synthetic test"}},
         response_model=SupervisorPlan,
         demo_factory=lambda: SupervisorPlan(
             case_categories=["general"],
@@ -38,6 +39,7 @@ def test_demo_provider_rejects_empty_prompt() -> None:
         DemoModelProvider().generate(
             agent="supervisor",
             prompt=" ",
+            context={},
             response_model=SupervisorPlan,
             demo_factory=lambda: SupervisorPlan(
                 reasoning="History review is required.",
@@ -72,6 +74,7 @@ def test_openai_provider_parses_pydantic_output_and_calculates_cost() -> None:
     result = provider.generate(
         agent="supervisor",
         prompt="Create a plan",
+        context={"case_input": {"chief_complaint": "Synthetic test"}},
         response_model=SupervisorPlan,
         demo_factory=lambda: expected,
     )
@@ -79,6 +82,8 @@ def test_openai_provider_parses_pydantic_output_and_calculates_cost() -> None:
     assert result.output == expected
     assert result.usage.estimated_cost == pytest.approx(0.0004)
     assert parse_calls[0]["text_format"] is SupervisorPlan
+    assert "Workflow context JSON" in str(parse_calls[0]["input"])
+    assert "Review history first" not in str(parse_calls[0]["input"])
 
 
 def test_gemini_provider_validates_json_output_and_usage() -> None:
@@ -102,6 +107,7 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     result = provider.generate(
         agent="supervisor",
         prompt="Create a plan",
+        context={"case_input": {"chief_complaint": "Synthetic test"}},
         response_model=SupervisorPlan,
         demo_factory=lambda: expected,
     )
@@ -110,6 +116,7 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     response_format = create_calls[0]["response_format"]
     assert isinstance(response_format, dict)
     assert response_format["mime_type"] == "application/json"
+    assert "Review history first" not in str(create_calls[0]["input"])
 
 
 def test_provider_factory_preserves_demo_default() -> None:

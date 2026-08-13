@@ -56,6 +56,14 @@ class CriticAgent(BaseAgent):
                 "Attempt to falsify the differential, identify unsupported claims, premature "
                 "closure, contradictions, and missing evidence."
             ),
+            context={
+                "differential_diagnoses": state["differential_diagnoses"],
+                "specialist_opinions": state["specialist_opinions"],
+                "contradictions": state["contradictions"],
+                "retrieved_evidence": state["retrieved_evidence"],
+                "revision_count": revision_count,
+                "maximum_revisions": self.max_revisions,
+            },
             response_model=CriticReview,
             demo_factory=lambda: CriticReview(
                 decision=decision,

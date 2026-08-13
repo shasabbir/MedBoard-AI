@@ -43,6 +43,7 @@ class SupervisorAgent(BaseAgent):
         result = self.provider.generate(
             agent=self.name,
             prompt=prompt,
+            context={"case_input": case},
             response_model=SupervisorPlan,
             demo_factory=lambda: SupervisorPlan(
                 case_categories=categories,

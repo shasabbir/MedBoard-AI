@@ -147,6 +147,14 @@ class DifferentialAgent(BaseAgent):
                 "Integrate structured history, symptom, laboratory, and medication evidence "
                 "into multiple competing diagnostic considerations."
             ),
+            context={
+                "case_input": state["case_input"],
+                "evidence": evidence,
+                "history_findings": state.get("history_findings"),
+                "symptom_findings": state.get("symptom_findings"),
+                "laboratory_findings": state.get("laboratory_findings"),
+                "medication_findings": state.get("medication_findings"),
+            },
             response_model=DifferentialAnalysis,
             demo_factory=lambda: DifferentialAnalysis(
                 diagnoses=diagnoses,

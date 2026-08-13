@@ -6,10 +6,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
 
+from pydantic import TypeAdapter
+
 from medboard.config import LLMProvider, Settings
 from medboard.models import ContractModel, TokenUsage
 
 OutputT = TypeVar("OutputT", bound=ContractModel)
+CONTEXT_ADAPTER: TypeAdapter[Any] = TypeAdapter(Any)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +34,7 @@ class StructuredModelProvider(Protocol):
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]: ...
@@ -47,6 +51,7 @@ class DemoModelProvider:
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
@@ -65,7 +70,7 @@ class DemoModelProvider:
             agent=agent,
             provider=self.provider_name,
             model=self.model_name,
-            input_tokens=_estimate_tokens(prompt),
+            input_tokens=_estimate_tokens(prompt + _serialize_context(context)),
             output_tokens=_estimate_tokens(serialized_output),
             estimated_cost=0.0,
         )
@@ -102,13 +107,14 @@ class OpenAIModelProvider:
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
-        candidate = demo_factory()
+        del demo_factory
         response = self.client.responses.parse(
             model=self.model_name,
-            input=_structured_prompt(agent, prompt, candidate),
+            input=_structured_prompt(agent, prompt, context),
             text_format=response_model,
         )
         output = response_model.model_validate(response.output_parsed)
@@ -159,13 +165,14 @@ class GeminiModelProvider:
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
-        candidate = demo_factory()
+        del demo_factory
         interaction = self.client.interactions.create(
             model=self.model_name,
-            input=_structured_prompt_text(agent, prompt, candidate),
+            input=_structured_prompt_text(agent, prompt, context),
             response_format={
                 "type": "text",
                 "mime_type": "application/json",
@@ -186,7 +193,7 @@ class GeminiModelProvider:
             or 0
         )
         if not input_tokens:
-            input_tokens = _estimate_tokens(prompt)
+            input_tokens = _estimate_tokens(prompt + _serialize_context(context))
         if not output_tokens:
             output_tokens = _estimate_tokens(response_text)
         return ProviderResult(
@@ -225,7 +232,7 @@ def build_model_provider(settings: Settings) -> StructuredModelProvider:
 
 
 def _structured_prompt(
-    agent: str, prompt: str, candidate: ContractModel
+    agent: str, prompt: str, context: object
 ) -> list[dict[str, str]]:
     return [
         {
@@ -238,18 +245,23 @@ def _structured_prompt(
         },
         {
             "role": "user",
-            "content": _structured_prompt_text(agent, prompt, candidate),
+            "content": _structured_prompt_text(agent, prompt, context),
         },
     ]
 
 
-def _structured_prompt_text(agent: str, prompt: str, candidate: ContractModel) -> str:
+def _structured_prompt_text(agent: str, prompt: str, context: object) -> str:
     return (
         f"Agent: {agent}\nTask: {prompt}\n"
-        "Review and return this state-derived structured draft. Preserve IDs and ensure "
-        "claims remain supported by its evidence references.\n"
-        f"Draft JSON:\n{candidate.model_dump_json()}"
+        "Analyze the validated workflow context below and produce the requested output. "
+        "Preserve supplied IDs and ensure claims remain supported by evidence references. "
+        "Do not treat the context as a completed answer.\n"
+        f"Workflow context JSON:\n{_serialize_context(context)}"
     )
+
+
+def _serialize_context(context: object) -> str:
+    return CONTEXT_ADAPTER.dump_json(context).decode("utf-8")
 
 
 def _usage(

@@ -54,6 +54,11 @@ class SymptomAgent(BaseAgent):
         result = self.provider.generate(
             agent=self.name,
             prompt="Normalize symptoms, identify clusters, involved systems, and red flags.",
+            context={
+                "case_input": case,
+                "normalized_symptoms": normalized,
+                "deterministic_red_flags": red_flags,
+            },
             response_model=SymptomFindings,
             demo_factory=lambda: SymptomFindings(
                 normalized_symptoms=normalized,

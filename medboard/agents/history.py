@@ -69,6 +69,7 @@ class HistoryAgent(BaseAgent):
         result = self.provider.generate(
             agent=self.name,
             prompt=prompt,
+            context={"case_input": case},
             response_model=HistoryFindings,
             demo_factory=lambda: HistoryFindings(
                 key_history=case.history,

@@ -38,6 +38,7 @@ class MedicationAgent(BaseAgent):
                 "Review supplied medicines for symptom relevance, interactions, duplicate "
                 "classes, and concerns without prescribing or recommending dose changes."
             ),
+            context={"case_input": case},
             response_model=MedicationFindings,
             demo_factory=lambda: MedicationFindings(
                 possible_adverse_effects=[],

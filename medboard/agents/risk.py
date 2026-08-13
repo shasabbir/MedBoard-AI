@@ -45,6 +45,10 @@ class RiskAgent(BaseAgent):
                 "Explain urgency from deterministic red-flag rules. Do not diagnose and do "
                 "not generate treatment or a final report."
             ),
+            context={
+                "deterministic_triage": deterministic_result,
+                "evidence": state["evidence"],
+            },
             response_model=TriageResult,
             demo_factory=lambda: deterministic_result,
         )

@@ -81,6 +81,10 @@ class LaboratoryAgent(BaseAgent):
         result = self.provider.generate(
             agent=self.name,
             prompt="Interpret deterministic lab flags and explain patterns without diagnosing.",
+            context={
+                "case_input": case,
+                "deterministic_lab_assessments": assessments,
+            },
             response_model=LaboratoryFindings,
             demo_factory=lambda: LaboratoryFindings(
                 abnormal_values=abnormal,

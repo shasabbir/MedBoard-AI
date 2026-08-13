@@ -30,6 +30,11 @@ class BaseSpecialistAgent(BaseAgent):
                 f"Independently review the shared evidence as the {self.name} specialist. "
                 "Support, challenge, or add hypotheses without making a definitive diagnosis."
             ),
+            context={
+                "case_input": state["case_input"],
+                "evidence": state["evidence"],
+                "differential_diagnoses": state["differential_diagnoses"],
+            },
             response_model=SpecialistOpinion,
             demo_factory=lambda: self.build_opinion(state),
         )

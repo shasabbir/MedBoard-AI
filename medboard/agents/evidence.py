@@ -50,6 +50,10 @@ class EvidenceRetrievalAgent(BaseAgent):
         provider_result = self.provider.generate(
             agent=self.name,
             prompt=prompt,
+            context={
+                "clinical_questions": questions,
+                "retrieved_source_chunks": results,
+            },
             response_model=EvidenceRetrievalAnalysis,
             demo_factory=lambda: EvidenceRetrievalAnalysis(
                 results=results,

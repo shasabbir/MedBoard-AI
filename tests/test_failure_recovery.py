@@ -33,10 +33,11 @@ class AlwaysFailProvider:
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
-        del agent, prompt, response_model, demo_factory
+        del agent, prompt, context, response_model, demo_factory
         raise ConnectionError("simulated provider outage")
 
 
@@ -57,10 +58,11 @@ class DowngradingRiskProvider:
         *,
         agent: str,
         prompt: str,
+        context: object,
         response_model: type[OutputT],
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
-        del prompt, demo_factory
+        del prompt, context, demo_factory
         output = TriageResult(
             triage_level=TriageLevel.ROUTINE,
             reasoning="The model attempted to weaken deterministic urgency.",
