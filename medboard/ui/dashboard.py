@@ -68,7 +68,7 @@ def run_dashboard() -> None:
         st.caption(f"Maximum critic revisions: {runtime.settings.max_revisions}")
 
     if page == "Saved cases":
-        selected_run = render_memory(runtime.case_memory)
+        selected_run = render_memory(runtime.case_memory, runtime.service)
         if selected_run:
             st.session_state.active_run_id = selected_run
             st.rerun()

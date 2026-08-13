@@ -10,6 +10,7 @@ from langgraph.types import Command
 
 from medboard.graph.state import MedicalCaseSnapshot, create_initial_state, validate_state
 from medboard.memory import CaseMemoryRepository
+from medboard.memory import WorkflowCheckpoint
 from medboard.models import HumanReviewCommand, MedicalCaseInput
 
 
@@ -26,9 +27,11 @@ class WorkflowService:
         self,
         graph: CompiledStateGraph,
         case_memory: CaseMemoryRepository,
+        checkpoint: WorkflowCheckpoint | None = None,
     ) -> None:
         self.graph = graph
         self.case_memory = case_memory
+        self.checkpoint = checkpoint
 
     def start(self, case: MedicalCaseInput, run_id: str) -> WorkflowResult:
         config = self._config(run_id)
@@ -47,6 +50,17 @@ class WorkflowService:
             config,
         )
         return self._persist_result(result, config)
+
+    def delete_case(self, case_id: str) -> bool:
+        """Delete case history and every corresponding resumable checkpoint."""
+        run_ids = self.case_memory.run_ids_for_case(case_id)
+        if not run_ids:
+            return False
+        if self.checkpoint is None:
+            raise RuntimeError("complete case deletion requires the checkpoint store")
+        for run_id in run_ids:
+            self.checkpoint.delete_run(run_id)
+        return self.case_memory.delete_case(case_id)
 
     def _persist_result(
         self,

@@ -19,6 +19,10 @@ class WorkflowCheckpoint:
     def close(self) -> None:
         self.connection.close()
 
+    def delete_run(self, run_id: str) -> None:
+        """Delete every checkpoint and pending write for one workflow run."""
+        self.saver.delete_thread(run_id)
+
     def __enter__(self) -> WorkflowCheckpoint:
         return self
 

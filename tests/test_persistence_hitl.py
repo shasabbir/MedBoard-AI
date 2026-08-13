@@ -301,3 +301,24 @@ def test_case_deletion_cascades_audit_history(tmp_path: Path) -> None:
         assert repository.list_runs() == []
     finally:
         checkpoint.close()
+
+
+def test_service_deletes_case_history_and_all_workflow_checkpoints(
+    tmp_path: Path,
+) -> None:
+    graph, checkpoint = build_graph(tmp_path)
+    repository = CaseMemoryRepository(Database(tmp_path / "delete_history.db"))
+    service = WorkflowService(graph, repository, checkpoint)
+    try:
+        service.start(neurological_case(), "RUN-DELETE-ALL-1")
+        service.start(neurological_case(), "RUN-DELETE-ALL-2")
+
+        assert service.delete_case("CASE-HITL-NEURO") is True
+        assert repository.load_run("RUN-DELETE-ALL-1") is None
+        assert repository.load_run("RUN-DELETE-ALL-2") is None
+        for run_id in ("RUN-DELETE-ALL-1", "RUN-DELETE-ALL-2"):
+            state = graph.get_state({"configurable": {"thread_id": run_id}})
+            assert state.values == {}
+            assert not state.interrupts
+    finally:
+        checkpoint.close()

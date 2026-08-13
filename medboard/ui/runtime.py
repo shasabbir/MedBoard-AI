@@ -44,5 +44,5 @@ def get_runtime() -> AppRuntime:
         checkpoint=checkpoint,
         case_memory=case_memory,
         knowledge_store=knowledge_store,
-        service=WorkflowService(graph, case_memory),
+        service=WorkflowService(graph, case_memory, checkpoint),
     )

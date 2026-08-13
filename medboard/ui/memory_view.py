@@ -3,9 +3,12 @@
 import streamlit as st
 
 from medboard.memory import CaseMemoryRepository
+from medboard.workflow_service import WorkflowService
 
 
-def render_memory(repository: CaseMemoryRepository) -> str | None:
+def render_memory(
+    repository: CaseMemoryRepository, service: WorkflowService
+) -> str | None:
     st.subheader("Case history memory")
     runs = repository.list_runs()
     if not runs:
@@ -24,7 +27,7 @@ def render_memory(repository: CaseMemoryRepository) -> str | None:
             f"{len(run.execution_trace)} trace events"
         )
     if st.button("Delete selected case and audit history", type="secondary") and run:
-        repository.delete_case(run.case_input.case_id)
+        service.delete_case(run.case_input.case_id)
         st.session_state.pop("active_run_id", None)
         st.success("Case and cascading audit history deleted.")
         st.rerun()

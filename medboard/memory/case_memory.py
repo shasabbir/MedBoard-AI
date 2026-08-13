@@ -159,3 +159,11 @@ class CaseMemoryRepository:
         with self.database.connect() as connection:
             cursor = connection.execute("DELETE FROM cases WHERE case_id = ?", (case_id,))
         return cursor.rowcount > 0
+
+    def run_ids_for_case(self, case_id: str) -> list[str]:
+        """Return all workflow run IDs owned by a case before cascading deletion."""
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT run_id FROM runs WHERE case_id = ? ORDER BY run_id", (case_id,)
+            ).fetchall()
+        return [str(row[0]) for row in rows]
