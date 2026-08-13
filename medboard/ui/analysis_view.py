@@ -54,7 +54,7 @@ def render_analysis(snapshot: MedicalCaseSnapshot) -> None:
 
     st.subheader("Highest-value missing information")
     ranked = sorted(
-        snapshot.missing_information,
+        (item for item in snapshot.missing_information if not item.resolved),
         key=lambda item: (item.diagnostic_utility + item.urgency, len(item.requested_by)),
         reverse=True,
     )
@@ -63,6 +63,9 @@ def render_analysis(snapshot: MedicalCaseSnapshot) -> None:
             f"- **{request.information_needed}** — {request.reason} "
             f"(requested by {', '.join(request.requested_by)})"
         )
+    resolved_count = sum(item.resolved for item in snapshot.missing_information)
+    if resolved_count:
+        st.caption(f"{resolved_count} request(s) were resolved by added information.")
 
 
 def render_rag(snapshot: MedicalCaseSnapshot) -> None:

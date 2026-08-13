@@ -20,6 +20,7 @@ from medboard.models import (
     HumanAction,
     HumanStatus,
     MedicalCaseInput,
+    MissingInformationRequest,
     RetrievedEvidence,
     TokenUsage,
     TriageLevel,
@@ -192,6 +193,41 @@ def test_final_report_explicitly_flags_failed_analysis() -> None:
     assert report is not None
     assert any("Evidence retrieval was unavailable" in item for item in report.limitations)
     assert any("Medication analysis was unavailable" in item for item in report.limitations)
+
+
+def test_final_report_excludes_resolved_information_requests() -> None:
+    state = create_initial_state(
+        MedicalCaseInput(chief_complaint="Synthetic resolved-request test"),
+        run_id="RUN-REPORT-RESOLVED-REQUEST",
+    )
+    state["human_review"] = HumanReview(status=HumanStatus.APPROVED)
+    state["triage_result"] = TriageResult(
+        triage_level=TriageLevel.ROUTINE,
+        reasoning="No configured red flag was triggered.",
+        recommended_escalation="Use the normal clinical review pathway.",
+    )
+    state["missing_information"] = [
+        MissingInformationRequest(
+            information_needed="ECG",
+            requested_by=["cardiology"],
+            reason="Initially requested.",
+            resolved=True,
+            resolution="Supplied during human review.",
+        ),
+        MissingInformationRequest(
+            information_needed="troponin",
+            requested_by=["cardiology"],
+            reason="Still required.",
+        ),
+    ]
+
+    update = ReporterAgent(DemoModelProvider(), max_retries=0).analyze(state)
+
+    report = update["final_report"]
+    assert report is not None
+    assert [item.information_needed for item in report.missing_information] == [
+        "troponin"
+    ]
 
 
 def test_successful_manual_retry_resolves_previous_agent_error() -> None:

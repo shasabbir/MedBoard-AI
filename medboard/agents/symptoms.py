@@ -32,13 +32,19 @@ class SymptomAgent(BaseAgent):
             SYMPTOM_ALIASES.get(symptom.casefold(), symptom.casefold())
             for symptom in case.symptoms
         ]
+        human_symptoms = {
+            SYMPTOM_ALIASES.get(str(symptom).casefold(), str(symptom).casefold())
+            for symptom in state.get("human_added_information", {}).get("symptoms", [])
+        }
         evidence = [
             Evidence(
                 evidence_id=f"EV-SYMPTOM-{index:03d}",
                 evidence_type=EvidenceType.SYMPTOM,
                 name=symptom,
                 value=True,
-                source="user_case",
+                source=(
+                    "human_review" if symptom in human_symptoms else "user_case"
+                ),
             )
             for index, symptom in enumerate(normalized, start=1)
         ]

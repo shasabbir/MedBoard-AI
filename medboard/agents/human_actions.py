@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import cast
 
 from langgraph.types import Overwrite
@@ -16,7 +17,10 @@ from medboard.models import (
     HumanAction,
     HumanReview,
     HumanStatus,
+    LabObservation,
+    MedicalCaseInput,
     MessageType,
+    MissingInformationRequest,
     TraceEvent,
     TraceEventType,
 )
@@ -33,32 +37,36 @@ def apply_human_information(state: MedicalCaseState) -> dict[str, object]:
         item.source == "human_review" for item in state["evidence"]
     )
     lab_tool = LabReferenceTool()
-    lab_values = command.added_information.get("laboratory_values", [])
-    if isinstance(lab_values, list):
-        from medboard.models import LabObservation
-
-        for index, raw in enumerate(lab_values, start=1):
-            observation = LabObservation.model_validate(raw)
-            assessment = lab_tool.assess(
-                observation, state["case_input"].biological_sex
+    updated_case, observations = _updated_case_input(
+        state["case_input"], command.added_information
+    )
+    for index, observation in enumerate(observations, start=1):
+        assessment = lab_tool.assess(
+            observation, state["case_input"].biological_sex
+        )
+        evidence.append(
+            Evidence(
+                evidence_id=(
+                    f"EV-HUMAN-{existing_human_evidence + index:03d}-LAB"
+                ),
+                evidence_type=EvidenceType.LAB,
+                name=observation.name,
+                value={"value": observation.value, "unit": observation.unit},
+                source="human_review",
+                metadata={
+                    "status": assessment.status.value,
+                    "reference_range": assessment.reference_range,
+                },
             )
-            evidence.append(
-                Evidence(
-                    evidence_id=(
-                        f"EV-HUMAN-{existing_human_evidence + index:03d}-LAB"
-                    ),
-                    evidence_type=EvidenceType.LAB,
-                    name=observation.name,
-                    value={"value": observation.value, "unit": observation.unit},
-                    source="human_review",
-                    metadata={
-                        "status": assessment.status.value,
-                        "reference_range": assessment.reference_range,
-                    },
-                )
-            )
+        )
+    structured_keys = {
+        "laboratory_values",
+        "symptoms",
+        "history",
+        "medications",
+    }
     for key, value in command.added_information.items():
-        if key == "laboratory_values":
+        if key in structured_keys:
             continue
         evidence.append(
             Evidence(
@@ -72,7 +80,13 @@ def apply_human_information(state: MedicalCaseState) -> dict[str, object]:
             )
         )
     return {
+        "case_input": updated_case,
         "evidence": evidence,
+        "missing_information": Overwrite(
+            value=_resolve_supplied_information(
+                state["missing_information"], command.added_information, observations
+            )
+        ),
         "historical_hypothesis_ids": list(
             dict.fromkeys(
                 [
@@ -104,26 +118,119 @@ def apply_human_information(state: MedicalCaseState) -> dict[str, object]:
                 details={
                     "action": "add_information",
                     "evidence_count": len(evidence),
-                    "rerun_from": (
-                        "laboratory" if lab_values else "differential"
-                    ),
+                    "rerun_agents": _affected_agent_names(command.added_information),
                 },
             )
         ],
     }
 
 
-def route_added_information(state: MedicalCaseState) -> str:
-    """Send new lab data through lab analysis; other facts start at integration."""
-    command = state.get("human_command")
-    if command is None or command.action is not HumanAction.ADD_INFORMATION:
-        raise ValueError("added-information routing requires an add_information command")
-    lab_values = command.added_information.get("laboratory_values")
-    return (
-        "laboratory_reanalysis"
-        if isinstance(lab_values, list) and lab_values
-        else "differential"
+class ReanalyzeHumanInformation:
+    """Run only intake agents affected by the latest human-supplied fields."""
+
+    name = "human_information_reanalysis"
+    _list_update_fields = {
+        "evidence",
+        "missing_information",
+        "agent_messages",
+        "errors",
+        "execution_trace",
+        "token_usage",
+    }
+
+    def __init__(self, agents: dict[str, BaseAgent]) -> None:
+        self.agents = agents
+
+    def __call__(self, state: MedicalCaseState) -> dict[str, object]:
+        command = state.get("human_command")
+        if command is None or command.action is not HumanAction.ADD_INFORMATION:
+            raise ValueError("reanalysis requires an add_information command")
+        combined: dict[str, object] = {}
+        existing_evidence_ids = {item.evidence_id for item in state["evidence"]}
+        for agent_name in _affected_agent_names(command.added_information):
+            update = self.agents[agent_name](state)
+            for field, value in update.items():
+                if field == "evidence" and isinstance(value, list):
+                    value = [
+                        item
+                        for item in value
+                        if isinstance(item, Evidence)
+                        and item.evidence_id not in existing_evidence_ids
+                    ]
+                if field in self._list_update_fields and isinstance(value, list):
+                    existing = combined.setdefault(field, [])
+                    if isinstance(existing, list):
+                        existing.extend(value)
+                else:
+                    combined[field] = value
+        return combined
+
+
+def _updated_case_input(
+    case: MedicalCaseInput, additions: Mapping[str, object]
+) -> tuple[MedicalCaseInput, list[LabObservation]]:
+    payload = case.model_dump(mode="python")
+    for field in ("symptoms", "history", "medications", "allergies"):
+        if field not in additions:
+            continue
+        supplied = additions[field]
+        if not isinstance(supplied, list) or not all(
+            isinstance(item, str) and item.strip() for item in supplied
+        ):
+            raise ValueError(f"{field} must be a list of non-empty strings")
+        payload[field] = list(dict.fromkeys([*payload[field], *supplied]))
+    raw_labs = additions.get("laboratory_values", [])
+    if not isinstance(raw_labs, list):
+        raise ValueError("laboratory_values must be a list")
+    observations = [LabObservation.model_validate(item) for item in raw_labs]
+    payload["laboratory_values"] = [*payload["laboratory_values"], *observations]
+    return MedicalCaseInput.model_validate(payload), observations
+
+
+def _affected_agent_names(additions: Mapping[str, object]) -> list[str]:
+    field_agents = {
+        "symptoms": "symptoms",
+        "history": "history",
+        "allergies": "history",
+        "medications": "medication",
+        "laboratory_values": "laboratory",
+    }
+    return list(
+        dict.fromkeys(
+            field_agents[key]
+            for key in additions
+            if key in field_agents and additions[key]
+        )
     )
+
+
+def _resolve_supplied_information(
+    requests: list[MissingInformationRequest],
+    additions: Mapping[str, object],
+    observations: list[LabObservation],
+) -> list[MissingInformationRequest]:
+    satisfied = {_information_key(key) for key in additions}
+    satisfied.update(_information_key(item.name) for item in observations)
+    aliases = {
+        "laboratory values": "laboratory values with explicit units",
+        "medications": "complete medication and supplement list",
+    }
+    satisfied.update(aliases[key] for key in list(satisfied) if key in aliases)
+    resolved: list[MissingInformationRequest] = []
+    for item in requests:
+        if _information_key(item.information_needed) in satisfied:
+            item = item.model_copy(
+                update={
+                    "resolved": True,
+                    "resolution": "Supplied during human review.",
+                }
+            )
+        resolved.append(item)
+    return resolved
+
+
+def _information_key(value: str) -> str:
+    return " ".join(value.replace("_", " ").casefold().split())
 
 
 class RetryFailedAgent:

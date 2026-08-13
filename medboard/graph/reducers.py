@@ -101,6 +101,8 @@ def merge_missing_information(
                 "evidence_ids": list(
                     dict.fromkeys([*existing.evidence_ids, *request.evidence_ids])
                 ),
+                "resolved": existing.resolved or request.resolved,
+                "resolution": existing.resolution or request.resolution,
             }
         )
     return merged

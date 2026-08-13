@@ -22,6 +22,10 @@ class HistoryAgent(BaseAgent):
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:
         case = state["case_input"]
+        human_history = {
+            str(item)
+            for item in state.get("human_added_information", {}).get("history", [])
+        }
         evidence: list[Evidence] = []
         if case.age is not None:
             evidence.append(
@@ -40,7 +44,7 @@ class HistoryAgent(BaseAgent):
                     evidence_type=EvidenceType.HISTORY,
                     name="reported history",
                     value=item,
-                    source="user_case",
+                    source=("human_review" if item in human_history else "user_case"),
                 )
             )
 

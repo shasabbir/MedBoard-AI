@@ -115,3 +115,24 @@ def test_missing_information_aggregates_agents_and_priority() -> None:
     assert merged[0].diagnostic_utility == 0.9
     assert merged[0].urgency == 0.8
     assert merged[0].evidence_ids == ["EV-SYMPTOM-001", "EV-SYMPTOM-002"]
+
+
+def test_resolved_missing_information_stays_resolved_when_requested_again() -> None:
+    resolved = MissingInformationRequest(
+        information_needed="ECG",
+        requested_by=["human_review"],
+        reason="Initially requested.",
+        resolved=True,
+        resolution="Supplied during human review.",
+    )
+    repeated = MissingInformationRequest(
+        information_needed="ECG",
+        requested_by=["cardiology"],
+        reason="Requested again during reanalysis.",
+    )
+
+    merged = merge_missing_information([resolved], [repeated])
+
+    assert len(merged) == 1
+    assert merged[0].resolved is True
+    assert merged[0].resolution == "Supplied during human review."

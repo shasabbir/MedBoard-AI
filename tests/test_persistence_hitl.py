@@ -222,6 +222,61 @@ def test_added_laboratory_information_refreshes_lab_analysis(tmp_path: Path) -> 
             item.hypothesis == "Iron-deficiency anemia pattern"
             for item in snapshot.differential_diagnoses
         )
+        lab_request = next(
+            item
+            for item in snapshot.missing_information
+            if item.information_needed == "laboratory values with explicit units"
+        )
+        assert lab_request.resolved is True
+        assert lab_request.resolution == "Supplied during human review."
+        assert graph.get_state(config).interrupts
+    finally:
+        checkpoint.close()
+
+
+def test_added_symptoms_rerun_only_symptom_intake_and_change_routing(
+    tmp_path: Path,
+) -> None:
+    graph, checkpoint = build_graph(tmp_path)
+    config = {"configurable": {"thread_id": "RUN-HITL-SYMPTOMS"}}
+    case = MedicalCaseInput(
+        case_id="CASE-HITL-SYMPTOMS",
+        chief_complaint="Nonspecific tiredness",
+        symptoms=["tiredness"],
+    )
+    try:
+        graph.invoke(
+            create_initial_state(case, run_id="RUN-HITL-SYMPTOMS"),
+            config,
+        )
+        paused_again = graph.invoke(
+            Command(
+                resume={
+                    "action": "add_information",
+                    "added_information": {"symptoms": ["fever", "cough"]},
+                }
+            ),
+            config,
+        )
+        snapshot = validate_state(paused_again)
+
+        starts = [
+            event.agent
+            for event in snapshot.execution_trace
+            if event.event_type.value == "agent_started"
+            and event.agent in {"history", "symptoms", "laboratory", "medication"}
+        ]
+        assert starts.count("symptoms") == 2
+        assert starts.count("history") == 1
+        assert starts.count("laboratory") == 1
+        assert starts.count("medication") == 1
+        assert snapshot.case_input.symptoms == ["tiredness", "fever", "cough"]
+        assert all(
+            item.source == "human_review"
+            for item in snapshot.evidence
+            if item.name in {"fever", "cough"}
+        )
+        assert "infectious_disease" in snapshot.selected_specialists
         assert graph.get_state(config).interrupts
     finally:
         checkpoint.close()

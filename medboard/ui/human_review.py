@@ -57,6 +57,11 @@ def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | N
         raw = st.text_area(
             "Additional information JSON",
             value='{"blood_pressure": "120/80 mmHg"}',
+            help=(
+                "Use symptoms, history, medications, allergies, or laboratory_values "
+                "for targeted intake-agent reanalysis; other keys are retained as "
+                "human evidence."
+            ),
         )
         try:
             parsed = json.loads(raw)

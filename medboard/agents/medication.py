@@ -21,13 +21,19 @@ class MedicationAgent(BaseAgent):
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:
         case = state["case_input"]
+        human_medications = {
+            str(item)
+            for item in state.get("human_added_information", {}).get("medications", [])
+        }
         evidence = [
             Evidence(
                 evidence_id=f"EV-MEDICATION-{index:03d}",
                 evidence_type=EvidenceType.MEDICATION,
                 name="reported medication",
                 value=medication,
-                source="user_case",
+                source=(
+                    "human_review" if medication in human_medications else "user_case"
+                ),
             )
             for index, medication in enumerate(case.medications, start=1)
         ]

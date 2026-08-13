@@ -486,6 +486,8 @@ class MissingInformationRequest(ContractModel):
     diagnostic_utility: ConfidenceScore = 0.5
     urgency: ConfidenceScore = 0.5
     evidence_ids: list[str] = Field(default_factory=list)
+    resolved: bool = False
+    resolution: NonEmptyString | None = None
 
     @field_validator("requested_by")
     @classmethod
@@ -494,6 +496,12 @@ class MissingInformationRequest(ContractModel):
         if not unique:
             raise ValueError("at least one requesting agent is required")
         return unique
+
+    @model_validator(mode="after")
+    def resolved_requests_require_resolution(self) -> Self:
+        if self.resolved and self.resolution is None:
+            raise ValueError("resolved information requests require a resolution")
+        return self
 
 
 class CriticReview(ContractModel):

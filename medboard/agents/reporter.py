@@ -18,6 +18,9 @@ class ReporterAgent(BaseAgent):
         if triage is None:
             raise ValueError("report generation requires triage assessment")
         required_limitations = _failure_limitations(state)
+        active_missing_information = [
+            item for item in state["missing_information"] if not item.resolved
+        ]
         result = self.provider.generate(
             agent=self.name,
             prompt=(
@@ -31,7 +34,7 @@ class ReporterAgent(BaseAgent):
                 "specialist_opinions": state["specialist_opinions"],
                 "retrieved_evidence": state["retrieved_evidence"],
                 "contradictions": state["contradictions"],
-                "missing_information": state["missing_information"],
+                "missing_information": active_missing_information,
                 "triage": triage,
                 "human_review": human_review,
                 "recorded_errors": state["errors"],
@@ -47,7 +50,7 @@ class ReporterAgent(BaseAgent):
                 specialist_opinions=state["specialist_opinions"],
                 retrieved_evidence=state["retrieved_evidence"],
                 disagreements=state["contradictions"],
-                missing_information=state["missing_information"],
+                missing_information=active_missing_information,
                 triage=triage,
                 review_priorities=[triage.recommended_escalation],
                 limitations=required_limitations,
@@ -55,6 +58,7 @@ class ReporterAgent(BaseAgent):
         )
         final_report = result.output.model_copy(
             update={
+                "missing_information": active_missing_information,
                 "limitations": list(
                     dict.fromkeys([*required_limitations, *result.output.limitations])
                 )

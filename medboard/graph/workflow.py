@@ -9,10 +9,10 @@ from langgraph.graph.state import CompiledStateGraph
 
 from medboard.agents.history import HistoryAgent
 from medboard.agents.human_actions import (
+    ReanalyzeHumanInformation,
     RetryFailedAgent,
     apply_human_information,
     apply_requested_specialist,
-    route_added_information,
 )
 from medboard.agents.human_review import human_review_node, mark_waiting_for_human
 from medboard.agents.evidence import EvidenceRetrievalAgent
@@ -187,8 +187,15 @@ def build_reviewable_workflow(
     builder.add_node("mark_waiting", mark_waiting_for_human)
     builder.add_node("apply_human_information", apply_human_information)
     builder.add_node(
-        "laboratory_reanalysis",
-        LaboratoryAgent(provider, max_retries=max_agent_retries),
+        "human_information_reanalysis",
+        ReanalyzeHumanInformation(
+            {
+                "history": HistoryAgent(provider, max_retries=max_agent_retries),
+                "symptoms": SymptomAgent(provider, max_retries=max_agent_retries),
+                "laboratory": LaboratoryAgent(provider, max_retries=max_agent_retries),
+                "medication": MedicationAgent(provider, max_retries=max_agent_retries),
+            }
+        ),
     )
     builder.add_node("apply_requested_specialist", apply_requested_specialist)
     builder.add_node(
@@ -243,10 +250,8 @@ def build_reviewable_workflow(
     builder.add_edge("risk", "mark_waiting")
     builder.add_edge("mark_waiting", "human_review")
     builder.add_conditional_edges("human_review", _route_human_decision)
-    builder.add_conditional_edges(
-        "apply_human_information", route_added_information
-    )
-    builder.add_edge("laboratory_reanalysis", "differential")
+    builder.add_edge("apply_human_information", "human_information_reanalysis")
+    builder.add_edge("human_information_reanalysis", "differential")
     builder.add_conditional_edges(
         "apply_requested_specialist", _route_requested_specialist
     )
