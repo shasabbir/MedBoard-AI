@@ -26,7 +26,8 @@ first failure.
   feedback history, and later case reload;
 - rejection without report and retained audit history;
 - OpenAI and Gemini structured provider adapters tested through injected clients;
-- rendered architecture, messages, trace, errors, timing, tokens, cost, logs, knowledge,
+- incrementally streamed execution trace plus rendered architecture, messages, errors,
+  timing, tokens, cost, logs, knowledge,
   settings, memory, review controls, and approval-gated report in Streamlit.
 
 ## Safety acceptance

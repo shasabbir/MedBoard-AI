@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,6 +39,14 @@ class WorkflowService:
         result = self.graph.invoke(create_initial_state(case, run_id=run_id), config)
         return self._persist_result(result, config)
 
+    def start_stream(
+        self, case: MedicalCaseInput, run_id: str
+    ) -> Iterator[MedicalCaseSnapshot]:
+        """Yield validated cumulative snapshots as the initial graph executes."""
+        yield from self._stream(
+            create_initial_state(case, run_id=run_id), self._config(run_id)
+        )
+
     def resume(self, run_id: str, command: HumanReviewCommand) -> WorkflowResult:
         if self.case_memory.load_run(run_id) is None:
             raise KeyError(f"unknown persisted run: {run_id}")
@@ -50,6 +59,20 @@ class WorkflowService:
             config,
         )
         return self._persist_result(result, config)
+
+    def resume_stream(
+        self, run_id: str, command: HumanReviewCommand
+    ) -> Iterator[MedicalCaseSnapshot]:
+        """Yield validated cumulative snapshots while a reviewed run resumes."""
+        if self.case_memory.load_run(run_id) is None:
+            raise KeyError(f"unknown persisted run: {run_id}")
+        config = self._config(run_id)
+        if not self.graph.get_state(config).interrupts:
+            raise ValueError(f"run is not waiting for human review: {run_id}")
+        self.case_memory.save_human_feedback(run_id, command)
+        yield from self._stream(
+            Command(resume=command.model_dump(mode="json")), config
+        )
 
     def delete_case(self, case_id: str) -> bool:
         """Delete case history and every corresponding resumable checkpoint."""
@@ -76,6 +99,21 @@ class WorkflowService:
         )
         self.case_memory.save_run(snapshot, status)
         return WorkflowResult(snapshot=snapshot, interrupted=interrupted)
+
+    def _stream(
+        self,
+        graph_input: Any,
+        config: dict[str, dict[str, str]],
+    ) -> Iterator[MedicalCaseSnapshot]:
+        last_state: dict[str, Any] | None = None
+        for state in self.graph.stream(graph_input, config, stream_mode="values"):
+            last_state = state
+            snapshot = validate_state(state)
+            self.case_memory.save_run(snapshot, "running")
+            yield snapshot
+        if last_state is None:
+            raise RuntimeError("workflow stream completed without producing state")
+        self._persist_result(last_state, config)
 
     @staticmethod
     def _config(run_id: str) -> dict[str, dict[str, str]]:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from functools import lru_cache
 from uuid import uuid4
 
@@ -86,16 +86,20 @@ def run_dashboard() -> None:
     case = render_case_input(runtime.settings.demo_cases_directory)
     if case is not None and st.button("Start multi-agent investigation", type="primary"):
         run_id = f"RUN-{uuid4().hex[:12].upper()}"
-        with st.spinner("The clinical reasoning board is investigating the case..."):
-            result = runtime.service.start(case, run_id)
+        started_snapshot = _render_live_progress(
+            runtime.service.start_stream(case, run_id),
+            "The clinical reasoning board is investigating the case...",
+        )
         log_event(
             get_logger(__name__),
             "dashboard_case_started",
             run_id=run_id,
             case_id=case.case_id,
-            interrupted=result.interrupted,
+            interrupted=(
+                started_snapshot.human_review.status.value == "waiting_for_human"
+            ),
         )
-        st.session_state.active_run_id = result.snapshot.run_id
+        st.session_state.active_run_id = started_snapshot.run_id
         st.success("Investigation reached human review.")
 
     snapshot = _active_snapshot(runtime.case_memory)
@@ -128,19 +132,24 @@ def run_dashboard() -> None:
     with tabs[5]:
         command = render_human_review(snapshot)
         if command is not None:
-            with st.spinner("Resuming the affected workflow path..."):
-                result = runtime.service.resume(snapshot.run_id, command)
+            resumed_snapshot = _render_live_progress(
+                runtime.service.resume_stream(snapshot.run_id, command),
+                "Resuming the affected workflow path...",
+            )
+            interrupted = (
+                resumed_snapshot.human_review.status.value == "waiting_for_human"
+            )
             log_event(
                 get_logger(__name__),
                 "dashboard_human_decision",
                 run_id=snapshot.run_id,
                 action=command.action.value,
-                interrupted=result.interrupted,
+                interrupted=interrupted,
             )
-            st.session_state.active_run_id = result.snapshot.run_id
+            st.session_state.active_run_id = resumed_snapshot.run_id
             st.success(
                 "Workflow paused for review again."
-                if result.interrupted
+                if interrupted
                 else "Human decision applied and run completed."
             )
             st.rerun()
@@ -153,6 +162,36 @@ def _active_snapshot(
 ) -> MedicalCaseSnapshot | None:
     run_id = st.session_state.get("active_run_id")
     return repository.load_run(str(run_id)) if run_id else None
+
+
+def _render_live_progress(
+    snapshots: Iterable[MedicalCaseSnapshot], label: str
+) -> MedicalCaseSnapshot:
+    """Render new trace records as cumulative LangGraph states arrive."""
+    status = st.status(label, expanded=True)
+    seen_trace_ids: set[str] = set()
+    latest: MedicalCaseSnapshot | None = None
+    for latest in snapshots:
+        for event in latest.execution_trace:
+            if event.trace_id in seen_trace_ids:
+                continue
+            seen_trace_ids.add(event.trace_id)
+            if event.event_type.value in {
+                "agent_started",
+                "agent_completed",
+                "agent_failed",
+                "routing_decision",
+                "tool_called",
+                "interrupted",
+                "resumed",
+            }:
+                actor = (event.agent or "workflow").replace("_", " ").title()
+                status.write(f"{actor}: {event.event_type.value.replace('_', ' ')}")
+    if latest is None:
+        status.update(label="Workflow produced no state", state="error")
+        raise RuntimeError("workflow stream completed without producing state")
+    status.update(label="Workflow execution trace complete", state="complete", expanded=False)
+    return latest
 
 
 def _metrics(snapshot: MedicalCaseSnapshot) -> None:

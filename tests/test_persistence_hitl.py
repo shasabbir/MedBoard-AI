@@ -324,6 +324,28 @@ def test_complete_add_information_resume_approve_acceptance_path(
         checkpoint.close()
 
 
+def test_streaming_service_yields_progress_and_persists_interrupt(
+    tmp_path: Path,
+) -> None:
+    graph, checkpoint = build_graph(tmp_path)
+    repository = CaseMemoryRepository(Database(tmp_path / "stream_history.db"))
+    service = WorkflowService(graph, repository, checkpoint)
+    try:
+        snapshots = list(
+            service.start_stream(neurological_case(), "RUN-STREAM-PROGRESS")
+        )
+
+        assert len(snapshots) > 2
+        assert snapshots[-1].human_review.status.value == "waiting_for_human"
+        assert repository.run_status("RUN-STREAM-PROGRESS") == "waiting_for_human"
+        assert repository.load_run("RUN-STREAM-PROGRESS") == snapshots[-1]
+        trace_lengths = [len(snapshot.execution_trace) for snapshot in snapshots]
+        assert trace_lengths == sorted(trace_lengths)
+        assert trace_lengths[-1] > trace_lengths[0]
+    finally:
+        checkpoint.close()
+
+
 def test_requested_specialist_runs_then_returns_to_human_review(tmp_path: Path) -> None:
     graph, checkpoint = build_graph(tmp_path)
     config = {"configurable": {"thread_id": "RUN-HITL-SPECIALIST"}}

@@ -35,6 +35,7 @@ def test_dashboard_starts_demo_case_and_renders_review_panels() -> None:
     app = start.click().run(timeout=30)
 
     assert not app.exception
+    assert any("Workflow execution trace complete" in item.label for item in app.status)
     assert any("Investigation reached human review" in item.value for item in app.success)
     assert any("Human / clinician review" in item.value for item in app.subheader)
     assert any("Execution graph" in item.value for item in app.subheader)
