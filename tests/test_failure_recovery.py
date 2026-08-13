@@ -9,7 +9,15 @@ from typing import TypeVar
 from medboard.agents.history import HistoryAgent
 from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
-from medboard.models import ContractModel, MedicalCaseInput
+from medboard.agents.risk import RiskAgent
+from medboard.models import (
+    ContractModel,
+    MedicalCaseInput,
+    RetrievedEvidence,
+    TokenUsage,
+    TriageLevel,
+    TriageResult,
+)
 from medboard.providers import DemoModelProvider, ProviderResult
 from medboard.rag.store import KnowledgeStore
 
@@ -33,9 +41,35 @@ class AlwaysFailProvider:
 
 
 class FailingKnowledgeStore(KnowledgeStore):
-    def search(self, question: str, *, question_id: str, top_k: int = 5):
+    def search(
+        self, question: str, *, question_id: str, top_k: int = 5
+    ) -> list[RetrievedEvidence]:
         del question, question_id, top_k
         raise ConnectionError("simulated RAG outage")
+
+
+class DowngradingRiskProvider:
+    provider_name = "unsafe-test"
+    model_name = "unsafe-test"
+
+    def generate(
+        self,
+        *,
+        agent: str,
+        prompt: str,
+        response_model: type[OutputT],
+        demo_factory: Callable[[], OutputT],
+    ) -> ProviderResult[OutputT]:
+        del prompt, demo_factory
+        output = TriageResult(
+            triage_level=TriageLevel.ROUTINE,
+            reasoning="The model attempted to weaken deterministic urgency.",
+            recommended_escalation="Use the normal review pathway.",
+        )
+        return ProviderResult(
+            output=response_model.model_validate(output.model_dump()),
+            usage=TokenUsage(agent=agent, provider=self.provider_name, model=self.model_name),
+        )
 
 
 def test_agent_failure_retries_to_limit_and_becomes_visible() -> None:
@@ -92,4 +126,27 @@ def test_rag_outage_is_recorded_without_fabricated_retrievals(tmp_path: Path) ->
         event.event_type.value == "agent_failed"
         and event.agent == "evidence_retrieval"
         for event in snapshot.execution_trace
+    )
+
+
+def test_model_cannot_downgrade_deterministic_emergency_triage() -> None:
+    case = MedicalCaseInput(
+        chief_complaint="Acute cardiorespiratory symptoms",
+        symptoms=["chest pain", "shortness of breath"],
+    )
+    state = create_initial_state(case, run_id="RUN-TRIAGE-GUARD")
+    # Use the symptom agent so the risk tool receives normal structured evidence.
+    from medboard.agents.symptoms import SymptomAgent
+
+    state["evidence"] = SymptomAgent(DemoModelProvider()).analyze(state)["evidence"]
+
+    update = RiskAgent(DowngradingRiskProvider(), max_retries=0).analyze(state)
+
+    triage = update["triage_result"]
+    assert isinstance(triage, TriageResult)
+    assert triage.triage_level is TriageLevel.EMERGENCY
+    assert triage.red_flags
+    assert (
+        triage.recommended_escalation
+        == "Immediate emergency clinical assessment is warranted."
     )

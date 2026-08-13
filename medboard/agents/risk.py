@@ -16,6 +16,14 @@ from medboard.providers import StructuredModelProvider
 from medboard.tools.risk_rules import RiskRuleTool
 
 
+TRIAGE_PRIORITY = {
+    "routine": 0,
+    "priority": 1,
+    "urgent": 2,
+    "emergency": 3,
+}
+
+
 class RiskAgent(BaseAgent):
     name = "risk"
 
@@ -40,20 +48,23 @@ class RiskAgent(BaseAgent):
             response_model=TriageResult,
             demo_factory=lambda: deterministic_result,
         )
+        triage_result = _preserve_deterministic_urgency(
+            deterministic_result, result.output
+        )
         return {
-            "triage_result": result.output,
+            "triage_result": triage_result,
             "agent_messages": [
                 AgentMessage(
                     sender=self.name,
                     recipient="human_review",
                     message_type=(
                         MessageType.WARNING
-                        if result.output.red_flags
+                        if triage_result.red_flags
                         else MessageType.RESPONSE
                     ),
                     content=(
-                        f"Triage level: {result.output.triage_level.value}. "
-                        f"{result.output.recommended_escalation}"
+                        f"Triage level: {triage_result.triage_level.value}. "
+                        f"{triage_result.recommended_escalation}"
                     ),
                 )
             ],
@@ -66,8 +77,31 @@ class RiskAgent(BaseAgent):
                     details={
                         "tool": "RiskRuleTool",
                         "call_count": 1,
-                        "red_flag_count": len(result.output.red_flags),
+                        "red_flag_count": len(triage_result.red_flags),
                     },
                 )
             ],
         }
+
+
+def _preserve_deterministic_urgency(
+    deterministic: TriageResult, model_result: TriageResult
+) -> TriageResult:
+    """Allow model explanation or escalation, but never weaken rule-based safety."""
+    deterministic_priority = TRIAGE_PRIORITY[deterministic.triage_level.value]
+    model_priority = TRIAGE_PRIORITY[model_result.triage_level.value]
+    if model_priority < deterministic_priority:
+        selected_level = deterministic.triage_level
+        escalation = deterministic.recommended_escalation
+    else:
+        selected_level = model_result.triage_level
+        escalation = model_result.recommended_escalation
+    return model_result.model_copy(
+        update={
+            "triage_level": selected_level,
+            "red_flags": list(
+                dict.fromkeys([*deterministic.red_flags, *model_result.red_flags])
+            ),
+            "recommended_escalation": escalation,
+        }
+    )
