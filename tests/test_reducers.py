@@ -2,8 +2,19 @@
 
 import pytest
 
-from medboard.graph.reducers import merge_evidence, merge_messages, merge_unique_strings
-from medboard.models import AgentMessage, Evidence, EvidenceType, MessageType
+from medboard.graph.reducers import (
+    merge_evidence,
+    merge_messages,
+    merge_missing_information,
+    merge_unique_strings,
+)
+from medboard.models import (
+    AgentMessage,
+    Evidence,
+    EvidenceType,
+    MessageType,
+    MissingInformationRequest,
+)
 
 
 def test_evidence_merge_is_ordered_and_idempotent() -> None:
@@ -74,3 +85,33 @@ def test_specialist_selection_merge_is_unique_and_stable() -> None:
         ["neurology", "infectious_disease"],
         ["neurology", "cardiology"],
     ) == ["neurology", "infectious_disease", "cardiology"]
+
+
+def test_missing_information_aggregates_agents_and_priority() -> None:
+    differential = MissingInformationRequest(
+        request_id="REQ-DIFFERENTIAL-ECG",
+        information_needed="ECG",
+        requested_by=["differential"],
+        reason="Needed to evaluate a cardiac consideration.",
+        diagnostic_utility=0.7,
+        urgency=0.6,
+        evidence_ids=["EV-SYMPTOM-001"],
+    )
+    cardiology = MissingInformationRequest(
+        request_id="REQ-CARDIOLOGY-ECG",
+        information_needed=" ecg ",
+        requested_by=["cardiology"],
+        reason="Needed for focused cardiac review.",
+        diagnostic_utility=0.9,
+        urgency=0.8,
+        evidence_ids=["EV-SYMPTOM-002"],
+    )
+
+    merged = merge_missing_information([differential], [cardiology])
+
+    assert len(merged) == 1
+    assert merged[0].request_id == "REQ-DIFFERENTIAL-ECG"
+    assert merged[0].requested_by == ["differential", "cardiology"]
+    assert merged[0].diagnostic_utility == 0.9
+    assert merged[0].urgency == 0.8
+    assert merged[0].evidence_ids == ["EV-SYMPTOM-001", "EV-SYMPTOM-002"]

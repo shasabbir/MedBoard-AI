@@ -42,6 +42,23 @@ def test_router_selects_only_evidence_justified_specialists(
     assert not (set(excluded_specialists) & set(snapshot.selected_specialists))
 
 
+def test_duplicate_missing_information_is_aggregated_across_agents() -> None:
+    workflow = build_collaboration_workflow(DemoModelProvider())
+    snapshot = validate_state(
+        workflow.invoke(
+            create_initial_state(load_case("cardiac"), run_id="RUN-MISSING-AGGREGATE")
+        )
+    )
+
+    ecg_requests = [
+        request
+        for request in snapshot.missing_information
+        if request.information_needed.casefold() == "ecg"
+    ]
+    assert len(ecg_requests) == 1
+    assert ecg_requests[0].requested_by == ["differential", "cardiology"]
+
+
 def test_differential_produces_competing_traceable_hypotheses() -> None:
     workflow = build_collaboration_workflow(DemoModelProvider())
     result = workflow.invoke(create_initial_state(load_case("anemia"), run_id="RUN-ANEMIA"))

@@ -73,7 +73,41 @@ def merge_critic_reviews(
 def merge_missing_information(
     current: list[MissingInformationRequest], update: list[MissingInformationRequest]
 ) -> list[MissingInformationRequest]:
-    return merge_records(current, update, lambda item: item.request_id)
+    """Aggregate semantically identical requests across independent agents."""
+    merged = list(current)
+    positions = {
+        _information_key(request.information_needed): index
+        for index, request in enumerate(merged)
+    }
+    for request in update:
+        key = _information_key(request.information_needed)
+        position = positions.get(key)
+        if position is None:
+            positions[key] = len(merged)
+            merged.append(request)
+            continue
+        existing = merged[position]
+        reasons = list(dict.fromkeys([existing.reason, request.reason]))
+        merged[position] = existing.model_copy(
+            update={
+                "requested_by": list(
+                    dict.fromkeys([*existing.requested_by, *request.requested_by])
+                ),
+                "reason": " ".join(reasons),
+                "diagnostic_utility": max(
+                    existing.diagnostic_utility, request.diagnostic_utility
+                ),
+                "urgency": max(existing.urgency, request.urgency),
+                "evidence_ids": list(
+                    dict.fromkeys([*existing.evidence_ids, *request.evidence_ids])
+                ),
+            }
+        )
+    return merged
+
+
+def _information_key(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 def merge_specialist_opinions(
