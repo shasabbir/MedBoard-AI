@@ -52,6 +52,20 @@ def test_dashboard_starts_demo_case_and_renders_review_panels() -> None:
 
     assert not app.exception
     assert any("MedBoard AI Case Review" in item.value for item in app.markdown)
+    rendered_sections = {item.value for item in app.markdown}
+    for section in [
+        "#### Key findings",
+        "#### Differential considerations",
+        "#### Specialist opinions",
+        "#### Retrieved evidence",
+        "#### Areas of disagreement",
+        "#### Missing information",
+        "#### Risk / triage assessment",
+        "#### Suggested clinical review priorities",
+        "#### Human review status",
+        "#### Disclaimer",
+    ]:
+        assert section in rendered_sections
 
 
 def test_analysis_snapshot_has_required_ui_data() -> None:
