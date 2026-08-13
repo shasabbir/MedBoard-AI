@@ -83,7 +83,11 @@ class CriticAgent(BaseAgent):
                 severity=severity,
             ),
         )
-        review = result.output
+        review = _enforce_revision_limit(
+            result.output,
+            revision_count=revision_count,
+            max_revisions=self.max_revisions,
+        )
         recipient = "supervisor" if review.decision is CriticDecision.REVISE else "risk"
         return {
             "critic_review": review,
@@ -106,3 +110,23 @@ class CriticAgent(BaseAgent):
             ],
             "token_usage": [result.usage],
         }
+
+
+def _enforce_revision_limit(
+    review: CriticReview, *, revision_count: int, max_revisions: int
+) -> CriticReview:
+    """Prevent a live model response from bypassing the graph's hard revision cap."""
+    if (
+        review.decision is not CriticDecision.REVISE
+        or revision_count < max_revisions
+    ):
+        return review
+    limit_problem = (
+        "Revision limit reached; unresolved issues must remain visible for human review."
+    )
+    return review.model_copy(
+        update={
+            "decision": CriticDecision.ACCEPT,
+            "problems": list(dict.fromkeys([*review.problems, limit_problem])),
+        }
+    )

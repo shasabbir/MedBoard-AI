@@ -2,10 +2,18 @@
 
 from pathlib import Path
 
+from medboard.agents.critic import CriticAgent
 from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
-from medboard.models import MedicalCaseInput, TriageLevel
-from medboard.providers import DemoModelProvider
+from medboard.models import (
+    CriticDecision,
+    CriticReview,
+    MedicalCaseInput,
+    Severity,
+    TokenUsage,
+    TriageLevel,
+)
+from medboard.providers import DemoModelProvider, ProviderResult
 from medboard.rag.store import KnowledgeStore
 
 
@@ -76,3 +84,37 @@ def test_risk_agent_does_not_generate_final_report(tmp_path: Path) -> None:
     assert snapshot.triage_result is not None
     assert snapshot.triage_result.triage_level is TriageLevel.PRIORITY
     assert snapshot.final_report is None
+
+
+def test_live_critic_response_cannot_bypass_revision_limit() -> None:
+    class AlwaysReviseProvider(DemoModelProvider):
+        def generate(self, **kwargs):
+            if kwargs["agent"] != "critic":
+                return super().generate(**kwargs)
+            return ProviderResult(
+                output=CriticReview(
+                    decision=CriticDecision.REVISE,
+                    problems=["The model requested another revision."],
+                    severity=Severity.MEDIUM,
+                ),
+                usage=TokenUsage(
+                    agent="critic",
+                    provider="test",
+                    model="always-revise",
+                ),
+            )
+
+    state = create_initial_state(
+        MedicalCaseInput(chief_complaint="Revision-limit audit"),
+        run_id="RUN-CRITIC-LIMIT",
+    )
+    state["revision_count"] = 2
+
+    update = CriticAgent(
+        AlwaysReviseProvider(), max_revisions=2, max_retries=0
+    ).analyze(state)
+
+    review = update["critic_review"]
+    assert isinstance(review, CriticReview)
+    assert review.decision is CriticDecision.ACCEPT
+    assert any("Revision limit reached" in item for item in review.problems)
