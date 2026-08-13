@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from langgraph.types import Overwrite
 
 from medboard.agents.base import BaseAgent
@@ -12,6 +14,8 @@ from medboard.models import (
     Evidence,
     EvidenceType,
     HumanAction,
+    HumanReview,
+    HumanStatus,
     MessageType,
     TraceEvent,
     TraceEventType,
@@ -138,7 +142,16 @@ class RetryFailedAgent:
         agent = self.agents.get(agent_name)
         if agent is None:
             raise ValueError(f"agent is not retryable: {agent_name}")
-        update = agent(state)
+        agent_state = state
+        if agent_name == "reporter":
+            current_review = state["human_review"]
+            agent_state = cast(MedicalCaseState, dict(state))
+            agent_state["human_review"] = HumanReview(
+                status=HumanStatus.APPROVED,
+                feedback=current_review.feedback,
+                reviewer=current_review.reviewer,
+            )
+        update = agent(agent_state)
         if update.get("errors"):
             return update
         resolved_errors = [
@@ -153,6 +166,8 @@ class RetryFailedAgent:
             for error in state["errors"]
         ]
         update["errors"] = Overwrite(value=resolved_errors)
+        if agent_name == "reporter":
+            update["human_review"] = agent_state["human_review"]
         return update
 
 

@@ -45,11 +45,13 @@ def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | N
             ["cardiology", "neurology", "infectious_disease"],
         )
     elif action == "retry_failed_agent":
-        failed = [
-            error.agent
-            for error in snapshot.errors
-            if error.agent and not error.resolved
-        ]
+        failed = list(
+            dict.fromkeys(
+                error.agent
+                for error in snapshot.errors
+                if error.agent and not error.resolved
+            )
+        )
         failed_agent = st.selectbox("Failed agent", failed or ["differential"])
     elif action == "add_information":
         raw = st.text_area(

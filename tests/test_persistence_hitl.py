@@ -13,14 +13,20 @@ from medboard.rag.store import KnowledgeStore
 from medboard.workflow_service import WorkflowService
 
 
-def build_graph(tmp_path: Path):
+def build_graph(
+    tmp_path: Path,
+    provider: DemoModelProvider | None = None,
+    *,
+    max_agent_retries: int = 2,
+):
     store = KnowledgeStore(tmp_path / "chroma")
     store.ingest_directory(Path("data/knowledge"))
     checkpoint = WorkflowCheckpoint(tmp_path / "workflow.db")
     graph = build_reviewable_workflow(
-        DemoModelProvider(),
+        provider or DemoModelProvider(),
         store,
         max_revisions=2,
+        max_agent_retries=max_agent_retries,
         checkpointer=checkpoint.saver,
     )
     return graph, checkpoint
@@ -61,6 +67,65 @@ def test_workflow_interrupts_and_resumes_to_approved_report(tmp_path: Path) -> N
         assert snapshot.final_report is not None
         assert snapshot.final_report.disclaimer
         assert not graph.get_state(config).interrupts
+    finally:
+        checkpoint.close()
+
+
+def test_failed_report_generation_returns_to_review_and_can_be_retried(
+    tmp_path: Path,
+) -> None:
+    class FailReporterOnceProvider(DemoModelProvider):
+        reporter_failures = 0
+
+        def generate(self, **kwargs):
+            if kwargs["agent"] == "reporter" and self.reporter_failures == 0:
+                self.reporter_failures += 1
+                raise ConnectionError("simulated reporter outage")
+            return super().generate(**kwargs)
+
+    graph, checkpoint = build_graph(
+        tmp_path,
+        FailReporterOnceProvider(),
+        max_agent_retries=0,
+    )
+    config = {"configurable": {"thread_id": "RUN-HITL-REPORT-RETRY"}}
+    try:
+        graph.invoke(
+            create_initial_state(
+                neurological_case(), run_id="RUN-HITL-REPORT-RETRY"
+            ),
+            config,
+        )
+        paused_again = validate_state(
+            graph.invoke(Command(resume={"action": "approve"}), config)
+        )
+
+        assert paused_again.human_review.status.value == "waiting_for_human"
+        assert paused_again.final_report is None
+        assert graph.get_state(config).interrupts
+        assert any(
+            error.agent == "reporter" and not error.resolved
+            for error in paused_again.errors
+        )
+
+        completed = validate_state(
+            graph.invoke(
+                Command(
+                    resume={
+                        "action": "retry_failed_agent",
+                        "failed_agent": "reporter",
+                    }
+                ),
+                config,
+            )
+        )
+
+        assert completed.human_review.status.value == "approved"
+        assert completed.final_report is not None
+        assert not graph.get_state(config).interrupts
+        assert all(
+            error.resolved for error in completed.errors if error.agent == "reporter"
+        )
     finally:
         checkpoint.close()
 

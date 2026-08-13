@@ -215,6 +215,7 @@ def build_reviewable_workflow(
                     provider, max_revisions, max_retries=max_agent_retries
                 ),
                 "risk": RiskAgent(provider, max_retries=max_agent_retries),
+                "reporter": ReporterAgent(provider, max_retries=max_agent_retries),
             }
         ),
     )
@@ -249,8 +250,8 @@ def build_reviewable_workflow(
     builder.add_conditional_edges(
         "apply_requested_specialist", _route_requested_specialist
     )
-    builder.add_edge("retry_failed_agent", "differential")
-    builder.add_edge("reporter", "audit_complete")
+    builder.add_conditional_edges("retry_failed_agent", _route_retry_result)
+    builder.add_conditional_edges("reporter", _route_reporter_result)
     builder.add_edge("audit_complete", END)
     return builder.compile(checkpointer=checkpointer)
 
@@ -315,6 +316,24 @@ def _route_human_decision(state: MedicalCaseState) -> HumanRoute:
 def _route_requested_specialist(state: MedicalCaseState) -> SpecialistRoute:
     command = state.get("human_command")
     return cast(SpecialistRoute, command.requested_specialist if command else "")
+
+
+RetryRoute = Literal["differential", "audit_complete", "mark_waiting"]
+
+
+def _route_retry_result(state: MedicalCaseState) -> RetryRoute:
+    command = state.get("human_command")
+    if command is not None and command.failed_agent == "reporter":
+        return "audit_complete" if state.get("final_report") is not None else "mark_waiting"
+    return "differential"
+
+
+ReporterRoute = Literal["audit_complete", "mark_waiting"]
+
+
+def _route_reporter_result(state: MedicalCaseState) -> ReporterRoute:
+    """Do not finalize an approved run when report generation exhausted retries."""
+    return "audit_complete" if state.get("final_report") is not None else "mark_waiting"
 
 
 def _complete_workflow(state: MedicalCaseState) -> dict[str, list[TraceEvent]]:
