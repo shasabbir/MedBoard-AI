@@ -70,7 +70,7 @@ class DemoModelProvider:
             agent=agent,
             provider=self.provider_name,
             model=self.model_name,
-            input_tokens=_estimate_tokens(prompt + _serialize_context(context)),
+            input_tokens=_estimate_tokens(prompt),
             output_tokens=_estimate_tokens(serialized_output),
             estimated_cost=0.0,
         )

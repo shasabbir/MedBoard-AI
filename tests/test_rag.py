@@ -6,7 +6,7 @@ from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
 from medboard.models import MedicalCaseInput
 from medboard.providers import DemoModelProvider
-from medboard.rag.ingestion import chunk_document, load_document
+from medboard.rag.ingestion import KnowledgeChunk, chunk_document, load_document
 from medboard.rag.store import KnowledgeStore
 
 
@@ -100,3 +100,36 @@ def test_ephemeral_store_starts_isolated(tmp_path: Path) -> None:
 
     assert first.count > 0
     assert second.count == 0
+
+
+def test_equal_distance_results_use_stable_chunk_id_order(tmp_path: Path) -> None:
+    store = KnowledgeStore(tmp_path / "stable", ephemeral=True)
+    shared = "identical educational content"
+    store.upsert(
+        [
+            KnowledgeChunk(
+                chunk_id="chunk-b",
+                document="Document B",
+                organization="Test",
+                year="2026",
+                source_url="https://example.test/b",
+                document_type="test",
+                section="Overview",
+                text=shared,
+            ),
+            KnowledgeChunk(
+                chunk_id="chunk-a",
+                document="Document A",
+                organization="Test",
+                year="2026",
+                source_url="https://example.test/a",
+                document_type="test",
+                section="Overview",
+                text=shared,
+            ),
+        ]
+    )
+
+    result = store.search(shared, question_id="Q-STABLE", top_k=1)
+
+    assert result[0].chunk_id == "chunk-a"

@@ -78,13 +78,17 @@ class KnowledgeStore:
             return []
         result = self.collection.query(
             query_embeddings=[self.embedder.embed(question)],
-            n_results=min(top_k, self.count),
+            n_results=self.count,
             include=["documents", "metadatas", "distances"],
         )
         ids = cast(list[list[str]], result["ids"])[0]
         documents = cast(list[list[str]], result["documents"])[0]
         metadata = cast(list[list[dict[str, Any]]], result["metadatas"])[0]
         distances = cast(list[list[float]], result["distances"])[0]
+        ranked = sorted(
+            zip(ids, documents, metadata, distances, strict=True),
+            key=lambda item: (item[3], item[0]),
+        )[:top_k]
         return [
             RetrievedEvidence(
                 retrieval_id=f"RAG-{question_id}-{index:03d}",
@@ -97,8 +101,5 @@ class KnowledgeStore:
                 similarity_score=max(0.0, min(1.0, 1.0 - distance)),
                 source_url=str(meta["source_url"]),
             )
-            for index, (chunk_id, document, meta, distance) in enumerate(
-                zip(ids, documents, metadata, distances, strict=True),
-                start=1,
-            )
+            for index, (chunk_id, document, meta, distance) in enumerate(ranked, start=1)
         ]
