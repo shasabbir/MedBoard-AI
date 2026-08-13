@@ -71,6 +71,7 @@ class MedicalCaseState(TypedDict):
         list[MissingInformationRequest], merge_missing_information
     ]
     differential_diagnoses: NotRequired[list[DifferentialDiagnosis]]
+    historical_hypothesis_ids: NotRequired[list[str]]
     differential_analysis: NotRequired[DifferentialAnalysis | None]
     selected_specialists: NotRequired[list[str]]
     routing_decisions: Annotated[
@@ -111,6 +112,7 @@ class MedicalCaseSnapshot(ContractModel):
     contradictions: list[Contradiction] = Field(default_factory=list)
     missing_information: list[MissingInformationRequest] = Field(default_factory=list)
     differential_diagnoses: list[DifferentialDiagnosis] = Field(default_factory=list)
+    historical_hypothesis_ids: list[str] = Field(default_factory=list)
     differential_analysis: DifferentialAnalysis | None = None
     selected_specialists: list[str] = Field(default_factory=list)
     routing_decisions: list[SpecialistRoutingDecision] = Field(default_factory=list)
@@ -193,9 +195,10 @@ class MedicalCaseSnapshot(ContractModel):
             and self.differential_analysis.diagnoses != self.differential_diagnoses
         ):
             raise ValueError("differential analysis and state diagnoses must match")
-        known_hypotheses = {
+        current_hypotheses = {
             diagnosis.hypothesis_id for diagnosis in self.differential_diagnoses
         }
+        known_hypotheses = current_hypotheses | set(self.historical_hypothesis_ids)
         for question in self.evidence_questions:
             unknown_question_hypotheses = set(question.hypothesis_ids) - known_hypotheses
             if unknown_question_hypotheses:
@@ -228,9 +231,11 @@ class MedicalCaseSnapshot(ContractModel):
             )
         if (
             self.evidence_retrieval_analysis is not None
-            and self.evidence_retrieval_analysis.results != self.retrieved_evidence
+            and not set(
+                item.retrieval_id for item in self.evidence_retrieval_analysis.results
+            ).issubset(known_retrievals)
         ):
-            raise ValueError("retrieval analysis and state results must match")
+            raise ValueError("retrieval analysis references results absent from state")
         for opinion in self.specialist_opinions:
             if opinion.specialist not in self.selected_specialists:
                 raise ValueError(

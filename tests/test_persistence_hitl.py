@@ -118,6 +118,50 @@ def test_added_information_reruns_downstream_then_interrupts_again(tmp_path: Pat
         checkpoint.close()
 
 
+def test_added_laboratory_information_refreshes_lab_analysis(tmp_path: Path) -> None:
+    graph, checkpoint = build_graph(tmp_path)
+    config = {"configurable": {"thread_id": "RUN-HITL-LAB"}}
+    try:
+        graph.invoke(
+            create_initial_state(neurological_case(), run_id="RUN-HITL-LAB"),
+            config,
+        )
+        paused_again = graph.invoke(
+            Command(
+                resume={
+                    "action": "add_information",
+                    "added_information": {
+                        "laboratory_values": [
+                            {"name": "hemoglobin", "value": 7.8, "unit": "g/dL"}
+                        ]
+                    },
+                }
+            ),
+            config,
+        )
+        snapshot = validate_state(paused_again)
+
+        assert snapshot.laboratory_findings is not None
+        assert any(
+            "hemoglobin: low" in item.casefold()
+            for item in snapshot.laboratory_findings.abnormal_values
+        )
+        laboratory_starts = [
+            event
+            for event in snapshot.execution_trace
+            if event.event_type.value == "agent_started"
+            and event.agent == "laboratory"
+        ]
+        assert len(laboratory_starts) == 2
+        assert any(
+            item.hypothesis == "Iron-deficiency anemia pattern"
+            for item in snapshot.differential_diagnoses
+        )
+        assert graph.get_state(config).interrupts
+    finally:
+        checkpoint.close()
+
+
 def test_complete_add_information_resume_approve_acceptance_path(
     tmp_path: Path,
 ) -> None:

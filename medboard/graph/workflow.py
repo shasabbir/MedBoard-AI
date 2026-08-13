@@ -12,6 +12,7 @@ from medboard.agents.human_actions import (
     RetryFailedAgent,
     apply_human_information,
     apply_requested_specialist,
+    route_added_information,
 )
 from medboard.agents.human_review import human_review_node, mark_waiting_for_human
 from medboard.agents.evidence import EvidenceRetrievalAgent
@@ -185,6 +186,10 @@ def build_reviewable_workflow(
     builder.add_node("human_review", human_review_node)
     builder.add_node("mark_waiting", mark_waiting_for_human)
     builder.add_node("apply_human_information", apply_human_information)
+    builder.add_node(
+        "laboratory_reanalysis",
+        LaboratoryAgent(provider, max_retries=max_agent_retries),
+    )
     builder.add_node("apply_requested_specialist", apply_requested_specialist)
     builder.add_node(
         "retry_failed_agent",
@@ -237,7 +242,10 @@ def build_reviewable_workflow(
     builder.add_edge("risk", "mark_waiting")
     builder.add_edge("mark_waiting", "human_review")
     builder.add_conditional_edges("human_review", _route_human_decision)
-    builder.add_edge("apply_human_information", "differential")
+    builder.add_conditional_edges(
+        "apply_human_information", route_added_information
+    )
+    builder.add_edge("laboratory_reanalysis", "differential")
     builder.add_conditional_edges(
         "apply_requested_specialist", _route_requested_specialist
     )

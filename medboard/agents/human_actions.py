@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from langgraph.types import Overwrite
+
 from medboard.agents.base import BaseAgent
 from medboard.graph.state import MedicalCaseState
 from medboard.models import (
@@ -67,6 +69,19 @@ def apply_human_information(state: MedicalCaseState) -> dict[str, object]:
         )
     return {
         "evidence": evidence,
+        "historical_hypothesis_ids": list(
+            dict.fromkeys(
+                [
+                    *state.get("historical_hypothesis_ids", []),
+                    *(
+                        item.hypothesis_id
+                        for item in state["differential_diagnoses"]
+                    ),
+                ]
+            )
+        ),
+        "specialist_opinions": Overwrite(value=[]),
+        "contradictions": Overwrite(value=[]),
         "revision_count": 0,
         "agent_messages": [
             AgentMessage(
@@ -85,11 +100,26 @@ def apply_human_information(state: MedicalCaseState) -> dict[str, object]:
                 details={
                     "action": "add_information",
                     "evidence_count": len(evidence),
-                    "rerun_from": "differential",
+                    "rerun_from": (
+                        "laboratory" if lab_values else "differential"
+                    ),
                 },
             )
         ],
     }
+
+
+def route_added_information(state: MedicalCaseState) -> str:
+    """Send new lab data through lab analysis; other facts start at integration."""
+    command = state.get("human_command")
+    if command is None or command.action is not HumanAction.ADD_INFORMATION:
+        raise ValueError("added-information routing requires an add_information command")
+    lab_values = command.added_information.get("laboratory_values")
+    return (
+        "laboratory_reanalysis"
+        if isinstance(lab_values, list) and lab_values
+        else "differential"
+    )
 
 
 class RetryFailedAgent:

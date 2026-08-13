@@ -12,6 +12,7 @@ from medboard.models import (
     Evidence,
     EvidenceType,
     LaboratoryFindings,
+    LabObservation,
     MessageType,
     MissingInformationRequest,
     TraceEvent,
@@ -36,11 +37,21 @@ class LaboratoryAgent(BaseAgent):
 
     def analyze(self, state: MedicalCaseState) -> StateUpdate:
         case = state["case_input"]
+        existing_evidence = [
+            item
+            for item in state["evidence"]
+            if item.evidence_type is EvidenceType.LAB
+        ]
+        observations = (
+            [_observation_from_evidence(item) for item in existing_evidence]
+            if existing_evidence
+            else case.laboratory_values
+        )
         assessments = [
             self.lab_tool.assess(observation, case.biological_sex)
-            for observation in case.laboratory_values
+            for observation in observations
         ]
-        evidence = [
+        evidence = existing_evidence or [
             Evidence(
                 evidence_id=f"EV-LAB-{index:03d}",
                 evidence_type=EvidenceType.LAB,
@@ -53,7 +64,7 @@ class LaboratoryAgent(BaseAgent):
                 },
             )
             for index, (observation, assessment) in enumerate(
-                zip(case.laboratory_values, assessments, strict=True), start=1
+                zip(observations, assessments, strict=True), start=1
             )
         ]
         abnormal = [
@@ -77,7 +88,7 @@ class LaboratoryAgent(BaseAgent):
                 confidence=0.95,
             )
         ] if abnormal_ids else []
-        missing = [] if case.laboratory_values else ["laboratory values with explicit units"]
+        missing = [] if observations else ["laboratory values with explicit units"]
         result = self.provider.generate(
             agent=self.name,
             prompt="Interpret deterministic lab flags and explain patterns without diagnosing.",
@@ -124,7 +135,7 @@ class LaboratoryAgent(BaseAgent):
                     status=AgentStatus.COMPLETED,
                     details={
                         "tool": "LabReferenceTool",
-                        "call_count": len(case.laboratory_values),
+                        "call_count": len(observations),
                     },
                 )
             ],
@@ -152,3 +163,14 @@ def _patterns(assessments: list[LabAssessment]) -> list[str]:
     ):
         return ["Low hemoglobin, MCV, and ferritin occur together in the supplied data."]
     return []
+
+
+def _observation_from_evidence(evidence: Evidence) -> LabObservation:
+    value = evidence.value
+    if not isinstance(value, dict) or "value" not in value:
+        raise ValueError(f"lab evidence {evidence.evidence_id} has an invalid value")
+    return LabObservation(
+        name=evidence.name,
+        value=value["value"],
+        unit=value.get("unit"),
+    )
