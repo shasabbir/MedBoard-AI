@@ -262,8 +262,39 @@ class MedicalCaseSnapshot(ContractModel):
                 f"contradictions reference unknown hypotheses: "
                 f"{sorted(unknown_contradictions)}"
             )
-        if self.final_report is not None and self.human_review.status is not HumanStatus.APPROVED:
-            raise ValueError("a final report requires explicit human approval")
+        if self.final_report is not None:
+            if self.human_review.status is not HumanStatus.APPROVED:
+                raise ValueError("a final report requires explicit human approval")
+            active_missing_information = [
+                item for item in self.missing_information if not item.resolved
+            ]
+            expected_report_fields = {
+                "case_summary": self.case_input.chief_complaint,
+                "key_findings": [
+                    f"{item.name}: {item.value}" for item in self.evidence
+                ],
+                "differential_considerations": self.differential_diagnoses,
+                "specialist_opinions": self.specialist_opinions,
+                "retrieved_evidence": self.retrieved_evidence,
+                "disagreements": self.contradictions,
+                "missing_information": active_missing_information,
+                "triage": self.triage_result,
+                "review_priorities": (
+                    [self.triage_result.recommended_escalation]
+                    if self.triage_result is not None
+                    else []
+                ),
+            }
+            inconsistent_fields = [
+                field_name
+                for field_name, expected in expected_report_fields.items()
+                if getattr(self.final_report, field_name) != expected
+            ]
+            if inconsistent_fields:
+                raise ValueError(
+                    "final report diverges from validated workflow state: "
+                    f"{sorted(inconsistent_fields)}"
+                )
         return self
 
     @property

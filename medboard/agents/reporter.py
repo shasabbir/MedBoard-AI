@@ -58,7 +58,17 @@ class ReporterAgent(BaseAgent):
         )
         final_report = result.output.model_copy(
             update={
+                "case_summary": state["case_input"].chief_complaint,
+                "key_findings": [
+                    f"{item.name}: {item.value}" for item in state["evidence"]
+                ],
+                "differential_considerations": state["differential_diagnoses"],
+                "specialist_opinions": state["specialist_opinions"],
+                "retrieved_evidence": state["retrieved_evidence"],
+                "disagreements": state["contradictions"],
                 "missing_information": active_missing_information,
+                "triage": triage,
+                "review_priorities": [triage.recommended_escalation],
                 "limitations": list(
                     dict.fromkeys([*required_limitations, *result.output.limitations])
                 )

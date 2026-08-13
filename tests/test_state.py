@@ -9,6 +9,8 @@ from medboard.models import (
     Evidence,
     EvidenceType,
     FinalReport,
+    HumanReview,
+    HumanStatus,
     MedicalCaseInput,
     MessageType,
     TokenUsage,
@@ -118,4 +120,26 @@ def test_final_report_requires_human_approval() -> None:
     )
 
     with pytest.raises(ValidationError, match="requires explicit human approval"):
+        validate_state(state)
+
+
+def test_state_rejects_report_that_diverges_from_validated_analysis() -> None:
+    state = create_initial_state(synthetic_case(), run_id="RUN-REPORT-DIVERGENCE")
+    state["human_review"] = HumanReview(status=HumanStatus.APPROVED)
+    state["triage_result"] = TriageResult(
+        triage_level=TriageLevel.EMERGENCY,
+        reasoning="Validated emergency assessment.",
+        recommended_escalation="Immediate emergency clinical assessment is warranted.",
+    )
+    state["final_report"] = FinalReport(
+        case_summary=state["case_input"].chief_complaint,
+        triage=TriageResult(
+            triage_level=TriageLevel.ROUTINE,
+            reasoning="Inconsistent model-generated assessment.",
+            recommended_escalation="Use the normal clinical review pathway.",
+        ),
+        review_priorities=["Use the normal clinical review pathway."],
+    )
+
+    with pytest.raises(ValidationError, match="diverges from validated workflow state"):
         validate_state(state)

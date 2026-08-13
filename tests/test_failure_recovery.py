@@ -15,6 +15,7 @@ from medboard.agents.human_actions import RetryFailedAgent
 from medboard.models import (
     ContractModel,
     AgentError,
+    FinalReport,
     HumanReview,
     HumanReviewCommand,
     HumanAction,
@@ -80,6 +81,32 @@ class DowngradingRiskProvider:
         return ProviderResult(
             output=response_model.model_validate(output.model_dump()),
             usage=TokenUsage(agent=agent, provider=self.provider_name, model=self.model_name),
+        )
+
+
+class UngroundedReporterProvider(DemoModelProvider):
+    """Return schema-valid but clinically inconsistent report content."""
+
+    def generate(self, **kwargs):
+        if kwargs["agent"] != "reporter":
+            return super().generate(**kwargs)
+        output = FinalReport(
+            case_summary="Fabricated certainty.",
+            key_findings=["Invented finding"],
+            triage=TriageResult(
+                triage_level=TriageLevel.ROUTINE,
+                reasoning="The reporting model weakened validated urgency.",
+                recommended_escalation="No urgent review.",
+            ),
+            review_priorities=["No urgent action"],
+        )
+        return ProviderResult(
+            output=output,
+            usage=TokenUsage(
+                agent="reporter",
+                provider="unsafe-test",
+                model="unsafe-test",
+            ),
         )
 
 
@@ -227,6 +254,36 @@ def test_final_report_excludes_resolved_information_requests() -> None:
     assert report is not None
     assert [item.information_needed for item in report.missing_information] == [
         "troponin"
+    ]
+
+
+def test_reporting_model_cannot_replace_validated_clinical_content() -> None:
+    case = MedicalCaseInput(
+        chief_complaint="Chest pain and shortness of breath",
+        symptoms=["chest pain", "shortness of breath"],
+    )
+    state = create_initial_state(case, run_id="RUN-REPORT-GROUNDING")
+    state["human_review"] = HumanReview(status=HumanStatus.APPROVED)
+    state["triage_result"] = TriageResult(
+        triage_level=TriageLevel.EMERGENCY,
+        red_flags=["Emergency cardiorespiratory red flag."],
+        reasoning="Validated deterministic emergency rule.",
+        recommended_escalation="Immediate emergency clinical assessment is warranted.",
+    )
+
+    update = ReporterAgent(
+        UngroundedReporterProvider(), max_retries=0
+    ).analyze(state)
+    state.update(update)
+    snapshot = validate_state(state)
+
+    assert snapshot.final_report is not None
+    assert snapshot.final_report.case_summary == case.chief_complaint
+    assert snapshot.final_report.key_findings == []
+    assert snapshot.final_report.triage == snapshot.triage_result
+    assert snapshot.final_report.triage.triage_level is TriageLevel.EMERGENCY
+    assert snapshot.final_report.review_priorities == [
+        "Immediate emergency clinical assessment is warranted."
     ]
 
 
