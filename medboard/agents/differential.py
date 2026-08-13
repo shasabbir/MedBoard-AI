@@ -169,8 +169,16 @@ class DifferentialAgent(BaseAgent):
                 ),
             ),
         )
+        validated_diagnoses = result.output.diagnoses
         referenced_evidence = _unique(
-            [item for diagnosis in diagnoses for item in diagnosis.supporting_evidence_ids]
+            [
+                item
+                for diagnosis in validated_diagnoses
+                for item in diagnosis.supporting_evidence_ids
+            ]
+        )
+        missing_items = _unique(
+            [item for diagnosis in validated_diagnoses for item in diagnosis.missing_evidence]
         )
         prior_differential_questions = sum(
             question.asked_by == self.name for question in state["evidence_questions"]
@@ -187,7 +195,7 @@ class DifferentialAgent(BaseAgent):
                 hypothesis_ids=[diagnosis.hypothesis_id],
                 evidence_ids=diagnosis.supporting_evidence_ids,
             )
-            for index, diagnosis in enumerate(diagnoses, start=1)
+            for index, diagnosis in enumerate(validated_diagnoses, start=1)
         ]
         return {
             "differential_analysis": result.output,

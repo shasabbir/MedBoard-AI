@@ -13,6 +13,7 @@ from medboard.models import ContractModel, TokenUsage
 
 OutputT = TypeVar("OutputT", bound=ContractModel)
 CONTEXT_ADAPTER: TypeAdapter[Any] = TypeAdapter(Any)
+RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 409, 425, 429})
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,16 +190,18 @@ class GeminiModelProvider:
             },
             timeout=self.timeout_seconds,
         )
-        response_text = str(interaction.output_text)
+        response_text = _gemini_response_text(interaction)
         output = response_model.model_validate_json(response_text)
         usage = getattr(interaction, "usage", None)
         input_tokens = int(
-            getattr(usage, "input_tokens", 0)
+            getattr(usage, "total_input_tokens", 0)
+            or getattr(usage, "input_tokens", 0)
             or getattr(usage, "prompt_token_count", 0)
             or 0
         )
         output_tokens = int(
-            getattr(usage, "output_tokens", 0)
+            getattr(usage, "total_output_tokens", 0)
+            or getattr(usage, "output_tokens", 0)
             or getattr(usage, "candidates_token_count", 0)
             or 0
         )
@@ -273,6 +276,49 @@ def _structured_prompt_text(agent: str, prompt: str, context: object) -> str:
 
 def _serialize_context(context: object) -> str:
     return CONTEXT_ADAPTER.dump_json(context).decode("utf-8")
+
+
+def _gemini_response_text(interaction: object) -> str:
+    """Read structured text from the SDK 2.x steps response."""
+    for step in reversed(list(getattr(interaction, "steps", None) or [])):
+        if getattr(step, "type", None) != "model_output":
+            continue
+        parts = [
+            str(text)
+            for item in (getattr(step, "content", None) or [])
+            if getattr(item, "type", None) == "text"
+            and (text := getattr(item, "text", None))
+        ]
+        if parts:
+            return "".join(parts)
+
+    # SDK 2.x currently exposes this convenience accessor as well. Retaining the
+    # fallback keeps injected test clients and minor SDK response variants safe.
+    output_text = getattr(interaction, "output_text", None)
+    if output_text:
+        return str(output_text)
+    raise ValueError("Gemini response did not contain model text")
+
+
+def is_retryable_provider_error(error: Exception) -> bool:
+    """Return whether a provider failure may succeed without request changes."""
+    status_code = _provider_status_code(error)
+    if status_code is None:
+        return True
+    if status_code in RETRYABLE_HTTP_STATUS_CODES:
+        return True
+    return status_code >= 500
+
+
+def _provider_status_code(error: Exception) -> int | None:
+    for value in (
+        getattr(error, "status_code", None),
+        getattr(error, "code", None),
+        getattr(getattr(error, "response", None), "status_code", None),
+    ):
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    return None
 
 
 def _usage(

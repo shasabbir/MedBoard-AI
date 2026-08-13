@@ -14,7 +14,7 @@ from medboard.models import (
     TraceEvent,
     TraceEventType,
 )
-from medboard.providers import StructuredModelProvider
+from medboard.providers import StructuredModelProvider, is_retryable_provider_error
 
 StateUpdate = dict[str, Any]
 
@@ -48,6 +48,8 @@ class BaseAgent(ABC):
                 break
             except Exception as exc:
                 failures.append(exc)
+                if not is_retryable_provider_error(exc):
+                    break
                 if attempt <= self.max_retries:
                     retry_events.append(
                         TraceEvent(
@@ -67,7 +69,7 @@ class BaseAgent(ABC):
                         error_type=type(last_error).__name__,
                         message=str(last_error),
                         severity=Severity.HIGH,
-                        retryable=True,
+                        retryable=is_retryable_provider_error(last_error),
                         attempt=len(failures),
                         details={"retry_limit": self.max_retries},
                     )

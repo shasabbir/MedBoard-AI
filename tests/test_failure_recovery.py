@@ -51,6 +51,16 @@ class AlwaysFailProvider:
         raise ConnectionError("simulated provider outage")
 
 
+class InvalidRequestError(Exception):
+    code = 400
+
+
+class InvalidRequestProvider(AlwaysFailProvider):
+    def generate(self, **kwargs):
+        del kwargs
+        raise InvalidRequestError("simulated invalid provider request")
+
+
 class FailingKnowledgeStore(KnowledgeStore):
     def search(
         self, question: str, *, question_id: str, top_k: int = 5
@@ -141,6 +151,21 @@ def test_agent_retry_limit_is_configurable() -> None:
     assert not any(
         event.details.get("retry") is True for event in update["execution_trace"]
     )
+
+
+def test_agent_does_not_retry_nonrecoverable_provider_request() -> None:
+    case = MedicalCaseInput(chief_complaint="Synthetic invalid request test")
+    agent = HistoryAgent(InvalidRequestProvider())
+
+    update = agent(create_initial_state(case, run_id="RUN-INVALID-REQUEST"))
+
+    error = update["errors"][0]
+    assert error.retryable is False
+    assert error.attempt == 1
+    assert not any(
+        event.details.get("retry") is True for event in update["execution_trace"]
+    )
+    assert update["execution_trace"][-1].details["attempts"] == 1
 
 
 def test_rag_outage_is_recorded_without_fabricated_retrievals(tmp_path: Path) -> None:

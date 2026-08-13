@@ -99,8 +99,19 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     def create(**kwargs: object) -> object:
         create_calls.append(kwargs)
         return SimpleNamespace(
-            output_text=expected.model_dump_json(),
-            usage=SimpleNamespace(input_tokens=80, output_tokens=40),
+            steps=[
+                SimpleNamespace(type="user_input", content=[]),
+                SimpleNamespace(
+                    type="model_output",
+                    content=[
+                        SimpleNamespace(
+                            type="text", text=expected.model_dump_json()
+                        )
+                    ],
+                ),
+            ],
+            output_text="steps should take precedence",
+            usage=SimpleNamespace(total_input_tokens=80, total_output_tokens=40),
         )
 
     client = SimpleNamespace(interactions=SimpleNamespace(create=create))
@@ -119,9 +130,13 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     assert result.output == expected
     response_format = create_calls[0]["response_format"]
     assert isinstance(response_format, dict)
+    assert response_format["type"] == "text"
     assert response_format["mime_type"] == "application/json"
+    assert response_format["schema"] == SupervisorPlan.model_json_schema()
     assert create_calls[0]["timeout"] == 7.0
     assert "Review history first" not in str(create_calls[0]["input"])
+    assert result.usage.input_tokens == 80
+    assert result.usage.output_tokens == 40
 
 
 @pytest.mark.parametrize("provider_type", [OpenAIModelProvider, GeminiModelProvider])

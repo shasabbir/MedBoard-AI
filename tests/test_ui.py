@@ -2,17 +2,30 @@
 
 from pathlib import Path
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
+from medboard.config import Settings, get_settings
 from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
 from medboard.models import MedicalCaseInput
 from medboard.providers import DemoModelProvider
-from medboard.config import Settings
+from medboard.ui.dashboard import _runtime
 from medboard.ui.system_views import _model_label, _read_json_lines
 from medboard.ui.workflow_view import GRAPH
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
+
+
+@pytest.fixture(autouse=True)
+def force_dashboard_demo_mode(monkeypatch: pytest.MonkeyPatch):
+    """Keep UI tests deterministic regardless of a developer's local .env."""
+    monkeypatch.setenv("DEMO_MODE", "true")
+    get_settings.cache_clear()
+    _runtime.cache_clear()
+    yield
+    _runtime.cache_clear()
+    get_settings.cache_clear()
 
 
 def test_dashboard_boots_with_safety_notice_and_case_selector() -> None:

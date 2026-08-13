@@ -28,7 +28,7 @@ workflow = [
     "langchain>=1.0,<2",
 ]
 providers = [
-    "google-genai>=1.0,<2",
+    "google-genai>=2.0,<3",
     "openai>=2.0,<3",
 ]
 dev = [

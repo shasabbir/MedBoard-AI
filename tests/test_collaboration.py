@@ -1,13 +1,77 @@
 """End-to-end tests for differential reasoning and conditional specialists."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import pytest
 
+from medboard.agents.differential import DifferentialAgent
 from medboard.graph.state import create_initial_state, validate_state
 from medboard.graph.workflow import build_collaboration_workflow
-from medboard.models import MedicalCaseInput
-from medboard.providers import DemoModelProvider
+from medboard.models import (
+    AgentOutput,
+    AgentStatus,
+    ContractModel,
+    DifferentialAnalysis,
+    DifferentialDiagnosis,
+    MedicalCaseInput,
+    TokenUsage,
+)
+from medboard.providers import DemoModelProvider, ProviderResult
+
+OutputT = TypeVar("OutputT", bound=ContractModel)
+
+
+class AlternateDifferentialProvider(DemoModelProvider):
+    """Emulate a live model returning hypotheses unlike the deterministic draft."""
+
+    def generate(
+        self,
+        *,
+        agent: str,
+        prompt: str,
+        context: object,
+        response_model: type[OutputT],
+        demo_factory: Callable[[], OutputT],
+    ) -> ProviderResult[OutputT]:
+        if agent != "differential":
+            return super().generate(
+                agent=agent,
+                prompt=prompt,
+                context=context,
+                response_model=response_model,
+                demo_factory=demo_factory,
+            )
+        output = DifferentialAnalysis(
+            diagnoses=[
+                DifferentialDiagnosis(
+                    hypothesis_id="HYP-LIVE-PRIMARY",
+                    hypothesis="Model-proposed primary consideration",
+                    confidence=0.6,
+                    missing_evidence=["targeted primary test"],
+                ),
+                DifferentialDiagnosis(
+                    hypothesis_id="HYP-LIVE-ALTERNATE",
+                    hypothesis="Model-proposed alternate consideration",
+                    confidence=0.3,
+                    missing_evidence=["targeted alternate test"],
+                ),
+            ],
+            output=AgentOutput(
+                agent="differential",
+                status=AgentStatus.COMPLETED,
+                summary="Returned two alternate considerations.",
+            ),
+        )
+        return ProviderResult(
+            output=response_model.model_validate(output.model_dump()),
+            usage=TokenUsage(
+                agent=agent,
+                provider=self.provider_name,
+                model=self.model_name,
+            ),
+        )
 
 
 def load_case(name: str) -> MedicalCaseInput:
@@ -73,6 +137,29 @@ def test_differential_produces_competing_traceable_hypotheses() -> None:
         for item in snapshot.differential_diagnoses
     )
     assert all(item.confidence < 1 for item in snapshot.differential_diagnoses)
+
+
+def test_differential_questions_follow_validated_provider_hypotheses() -> None:
+    state = create_initial_state(
+        MedicalCaseInput(chief_complaint="Synthetic live differential test"),
+        run_id="RUN-LIVE-DIFFERENTIAL",
+    )
+
+    update = DifferentialAgent(AlternateDifferentialProvider()).analyze(state)
+
+    diagnosis_ids = {
+        item.hypothesis_id for item in update["differential_diagnoses"]
+    }
+    question_ids = {
+        hypothesis_id
+        for question in update["evidence_questions"]
+        for hypothesis_id in question.hypothesis_ids
+    }
+    assert question_ids == diagnosis_ids
+    assert {item.information_needed for item in update["missing_information"]} == {
+        "targeted primary test",
+        "targeted alternate test",
+    }
 
 
 def test_specialist_challenge_becomes_auditable_contradiction() -> None:
