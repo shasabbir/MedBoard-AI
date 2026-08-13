@@ -46,13 +46,13 @@ class AlternateDifferentialProvider(DemoModelProvider):
         output = DifferentialAnalysis(
             diagnoses=[
                 DifferentialDiagnosis(
-                    hypothesis_id="HYP-LIVE-PRIMARY",
+                    hypothesis_id="MODEL-PRIMARY",
                     hypothesis="Model-proposed primary consideration",
                     confidence=0.6,
                     missing_evidence=["targeted primary test"],
                 ),
                 DifferentialDiagnosis(
-                    hypothesis_id="HYP-LIVE-ALTERNATE",
+                    hypothesis_id="MODEL-PRIMARY",
                     hypothesis="Model-proposed alternate consideration",
                     confidence=0.3,
                     missing_evidence=["targeted alternate test"],
@@ -156,6 +156,7 @@ def test_differential_questions_follow_validated_provider_hypotheses() -> None:
         for hypothesis_id in question.hypothesis_ids
     }
     assert question_ids == diagnosis_ids
+    assert diagnosis_ids == {"HYP-MODEL-001", "HYP-MODEL-002"}
     assert {item.information_needed for item in update["missing_information"]} == {
         "targeted primary test",
         "targeted alternate test",

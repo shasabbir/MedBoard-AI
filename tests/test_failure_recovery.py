@@ -61,6 +61,16 @@ class InvalidRequestProvider(AlwaysFailProvider):
         raise InvalidRequestError("simulated invalid provider request")
 
 
+class RateLimitError(Exception):
+    code = 429
+
+
+class RateLimitedProvider(AlwaysFailProvider):
+    def generate(self, **kwargs):
+        del kwargs
+        raise RateLimitError("simulated provider rate limit")
+
+
 class FailingKnowledgeStore(KnowledgeStore):
     def search(
         self, question: str, *, question_id: str, top_k: int = 5
@@ -166,6 +176,28 @@ def test_agent_does_not_retry_nonrecoverable_provider_request() -> None:
         event.details.get("retry") is True for event in update["execution_trace"]
     )
     assert update["execution_trace"][-1].details["attempts"] == 1
+
+
+def test_agent_backs_off_between_rate_limit_retries(monkeypatch) -> None:
+    delays: list[float] = []
+    monkeypatch.setattr("medboard.agents.base.sleep", delays.append)
+    case = MedicalCaseInput(chief_complaint="Synthetic rate-limit test")
+
+    update = HistoryAgent(RateLimitedProvider())(
+        create_initial_state(case, run_id="RUN-RATE-LIMIT")
+    )
+
+    assert delays == [1.0, 2.0]
+    retry_events = [
+        event
+        for event in update["execution_trace"]
+        if event.details.get("retry") is True
+    ]
+    assert [event.details["retry_delay_seconds"] for event in retry_events] == [
+        1.0,
+        2.0,
+    ]
+    assert update["errors"][0].retryable is True
 
 
 def test_rag_outage_is_recorded_without_fabricated_retrievals(tmp_path: Path) -> None:

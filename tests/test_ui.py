@@ -56,7 +56,7 @@ def test_dashboard_starts_demo_case_and_renders_review_panels() -> None:
     assert any("Agent communication history" in item.value for item in app.subheader)
     assert any(metric.label == "Triage level" for metric in app.metric)
     assert any(metric.label == "Tokens" for metric in app.metric)
-    assert any(metric.label == "Model calls" for metric in app.metric)
+    assert any(metric.label == "Model attempts" for metric in app.metric)
     assert any(metric.label == "Tool calls" for metric in app.metric)
 
     submit = next(

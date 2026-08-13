@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from medboard.agents.base import BaseAgent, StateUpdate
+from medboard.agents.base import BaseAgent, StateUpdate, ground_agent_output
 from medboard.graph.state import MedicalCaseState
 from medboard.models import (
     AgentMessage,
@@ -82,8 +82,17 @@ class SymptomAgent(BaseAgent):
                 ),
             ),
         )
+        findings = result.output.model_copy(
+            update={
+                "output": ground_agent_output(
+                    result.output.output,
+                    agent=self.name,
+                    claims=[claim] if evidence else [],
+                )
+            }
+        )
         return {
-            "symptom_findings": result.output,
+            "symptom_findings": findings,
             "evidence": evidence,
             "missing_information": [
                 MissingInformationRequest(
@@ -99,7 +108,7 @@ class SymptomAgent(BaseAgent):
                     sender=self.name,
                     recipient="supervisor",
                     message_type=(MessageType.WARNING if red_flags else MessageType.RESPONSE),
-                    content=result.output.output.summary,
+                    content=findings.output.summary,
                     evidence_ids=[item.evidence_id for item in evidence],
                 )
             ],

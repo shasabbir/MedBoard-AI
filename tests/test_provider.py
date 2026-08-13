@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from medboard.config import Settings
-from medboard.models import SupervisorPlan
+from medboard.models import LaboratoryFindings, SupervisorPlan
 from medboard.providers import (
     DemoModelProvider,
     GeminiModelProvider,
@@ -137,6 +137,55 @@ def test_gemini_provider_validates_json_output_and_usage() -> None:
     assert "Review history first" not in str(create_calls[0]["input"])
     assert result.usage.input_tokens == 80
     assert result.usage.output_tokens == 40
+
+
+def test_gemini_provider_discards_untrusted_model_claim_references() -> None:
+    response_json = """{
+        "abnormal_values": ["hematuria"],
+        "important_patterns": [],
+        "potential_implications": [],
+        "missing_tests": [],
+        "data_quality_warnings": [],
+        "output": {
+            "agent": "laboratory",
+            "status": "completed",
+            "summary": "Reviewed supplied laboratory data.",
+            "claims": [{
+                "claim_id": "CLM-MODEL-001",
+                "agent": "laboratory",
+                "statement": "Model-authored claim.",
+                "evidence_ids": ["EVD-LAB-01"],
+                "contradicting_evidence_ids": [],
+                "confidence": 0.7
+            }],
+            "missing_information": [],
+            "questions_for_other_agents": [],
+            "warnings": []
+        }
+    }"""
+    interaction = SimpleNamespace(
+        steps=[
+            SimpleNamespace(
+                type="model_output",
+                content=[SimpleNamespace(type="text", text=response_json)],
+            )
+        ],
+        usage=SimpleNamespace(total_input_tokens=20, total_output_tokens=30),
+    )
+    client = SimpleNamespace(
+        interactions=SimpleNamespace(create=lambda **kwargs: interaction)
+    )
+    provider = GeminiModelProvider("test-key", "test-model", client=client)
+
+    result = provider.generate(
+        agent="laboratory",
+        prompt="Review labs",
+        context={"evidence": [{"evidence_id": "EV-LAB-001"}]},
+        response_model=LaboratoryFindings,
+        demo_factory=lambda: None,
+    )
+
+    assert result.output.output.claims == []
 
 
 @pytest.mark.parametrize("provider_type", [OpenAIModelProvider, GeminiModelProvider])

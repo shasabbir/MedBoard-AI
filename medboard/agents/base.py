@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any
 
 from medboard.graph.state import MedicalCaseState
 from medboard.models import (
     AgentError,
+    AgentOutput,
     AgentStatus,
+    Claim,
     Severity,
     TraceEvent,
     TraceEventType,
 )
-from medboard.providers import StructuredModelProvider, is_retryable_provider_error
+from medboard.providers import (
+    StructuredModelProvider,
+    is_retryable_provider_error,
+    provider_retry_delay_seconds,
+)
 
 StateUpdate = dict[str, Any]
 
@@ -51,14 +57,21 @@ class BaseAgent(ABC):
                 if not is_retryable_provider_error(exc):
                     break
                 if attempt <= self.max_retries:
+                    retry_delay = provider_retry_delay_seconds(exc, attempt)
                     retry_events.append(
                         TraceEvent(
                             event_type=TraceEventType.AGENT_STARTED,
                             agent=self.name,
                             status=AgentStatus.RUNNING,
-                            details={"retry": True, "attempt": attempt + 1},
+                            details={
+                                "retry": True,
+                                "attempt": attempt + 1,
+                                "retry_delay_seconds": retry_delay,
+                            },
                         )
                     )
+                    if retry_delay:
+                        sleep(retry_delay)
         if update is None:
             duration_ms = (perf_counter() - started) * 1_000
             last_error = failures[-1]
@@ -109,3 +122,16 @@ class BaseAgent(ABC):
     @abstractmethod
     def analyze(self, state: MedicalCaseState) -> StateUpdate:
         """Return a validated partial graph-state update."""
+
+
+def ground_agent_output(
+    output: AgentOutput, *, agent: str, claims: list[Claim]
+) -> AgentOutput:
+    """Keep model narrative while restoring deterministic control fields."""
+    return output.model_copy(
+        update={
+            "agent": agent,
+            "status": AgentStatus.COMPLETED,
+            "claims": claims,
+        }
+    )

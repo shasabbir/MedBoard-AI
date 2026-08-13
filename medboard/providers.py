@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import json
+from threading import Lock
 from typing import Any, Generic, Protocol, TypeVar
 
 from pydantic import TypeAdapter
@@ -169,6 +171,7 @@ class GeminiModelProvider:
         self.input_cost_per_million = input_cost_per_million
         self.output_cost_per_million = output_cost_per_million
         self.timeout_seconds = timeout_seconds
+        self._request_lock = Lock()
 
     def generate(
         self,
@@ -180,17 +183,22 @@ class GeminiModelProvider:
         demo_factory: Callable[[], OutputT],
     ) -> ProviderResult[OutputT]:
         del demo_factory
-        interaction = self.client.interactions.create(
-            model=self.model_name,
-            input=_structured_prompt_text(agent, prompt, context),
-            response_format={
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": response_model.model_json_schema(),
-            },
-            timeout=self.timeout_seconds,
+        # A shared provider serves LangGraph's parallel branches. Serializing live
+        # calls avoids a burst of simultaneous requests against free-tier quotas.
+        with self._request_lock:
+            interaction = self.client.interactions.create(
+                model=self.model_name,
+                input=_structured_prompt_text(agent, prompt, context),
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": response_model.model_json_schema(),
+                },
+                timeout=self.timeout_seconds,
+            )
+        response_text = _ground_gemini_json_references(
+            _gemini_response_text(interaction), context
         )
-        response_text = _gemini_response_text(interaction)
         output = response_model.model_validate_json(response_text)
         usage = getattr(interaction, "usage", None)
         input_tokens = int(
@@ -310,6 +318,17 @@ def is_retryable_provider_error(error: Exception) -> bool:
     return status_code >= 500
 
 
+def provider_retry_delay_seconds(error: Exception, attempt: int) -> float:
+    """Return bounded backoff for transient HTTP failures only."""
+    status_code = _provider_status_code(error)
+    if status_code is None or not is_retryable_provider_error(error):
+        return 0.0
+    retry_after = _retry_after_seconds(error)
+    if retry_after is not None:
+        return min(30.0, max(0.0, retry_after))
+    return min(8.0, float(2 ** (attempt - 1)))
+
+
 def _provider_status_code(error: Exception) -> int | None:
     for value in (
         getattr(error, "status_code", None),
@@ -319,6 +338,70 @@ def _provider_status_code(error: Exception) -> int | None:
         if isinstance(value, int) and not isinstance(value, bool):
             return value
     return None
+
+
+def _retry_after_seconds(error: Exception) -> float | None:
+    headers = getattr(getattr(error, "response", None), "headers", None)
+    if headers is None:
+        return None
+    value = headers.get("retry-after") or headers.get("Retry-After")
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _ground_gemini_json_references(response_text: str, context: object) -> str:
+    """Remove model-authored reference links that are not present in context."""
+    try:
+        payload = json.loads(response_text)
+    except json.JSONDecodeError:
+        return response_text
+
+    context_payload = CONTEXT_ADAPTER.dump_python(context, mode="json")
+    allowed_evidence = _collect_identifier_values(context_payload, "evidence_id")
+    evidence_fields = {
+        "evidence_ids",
+        "supporting_evidence_ids",
+        "contradicting_evidence_ids",
+    }
+
+    def ground(value: object) -> object:
+        if isinstance(value, list):
+            return [ground(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        grounded: dict[str, object] = {}
+        for key, item in value.items():
+            if key == "claims":
+                # Claims and their evidence links are reconstructed by agents from
+                # deterministic evidence, never accepted from model output.
+                grounded[key] = []
+            elif key in evidence_fields and isinstance(item, list):
+                grounded[key] = [
+                    reference
+                    for reference in item
+                    if isinstance(reference, str) and reference in allowed_evidence
+                ]
+            else:
+                grounded[key] = ground(item)
+        return grounded
+
+    return json.dumps(ground(payload), separators=(",", ":"))
+
+
+def _collect_identifier_values(value: object, field_name: str) -> set[str]:
+    identifiers: set[str] = set()
+    if isinstance(value, list):
+        for item in value:
+            identifiers.update(_collect_identifier_values(item, field_name))
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if key == field_name and isinstance(item, str):
+                identifiers.add(item)
+            else:
+                identifiers.update(_collect_identifier_values(item, field_name))
+    return identifiers
 
 
 def _usage(

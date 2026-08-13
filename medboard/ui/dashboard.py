@@ -211,7 +211,11 @@ def _metrics(snapshot: MedicalCaseSnapshot) -> None:
     first_row = st.columns(5)
     first_row[0].metric("Run ID", snapshot.run_id[-8:])
     first_row[1].metric("Status", status)
-    first_row[2].metric("Model calls", len(snapshot.token_usage))
+    model_attempts = sum(
+        event.event_type.value == "agent_started"
+        for event in snapshot.execution_trace
+    )
+    first_row[2].metric("Model attempts", model_attempts)
     first_row[3].metric("Execution time", f"{elapsed_seconds:.2f}s")
     first_row[4].metric("Specialists", len(snapshot.selected_specialists))
     second_row = st.columns(5)

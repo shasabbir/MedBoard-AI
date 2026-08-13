@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from medboard.agents.base import BaseAgent, StateUpdate
+from medboard.agents.base import BaseAgent, StateUpdate, ground_agent_output
 from medboard.graph.state import MedicalCaseState
 from medboard.models import (
     AgentMessage,
@@ -95,6 +95,7 @@ class LaboratoryAgent(BaseAgent):
             context={
                 "case_input": case,
                 "deterministic_lab_assessments": assessments,
+                "evidence": evidence,
             },
             response_model=LaboratoryFindings,
             demo_factory=lambda: LaboratoryFindings(
@@ -115,15 +116,22 @@ class LaboratoryAgent(BaseAgent):
                 ),
             ),
         )
+        findings = result.output.model_copy(
+            update={
+                "output": ground_agent_output(
+                    result.output.output, agent=self.name, claims=claims
+                )
+            }
+        )
         update: StateUpdate = {
-            "laboratory_findings": result.output,
+            "laboratory_findings": findings,
             "evidence": evidence,
             "agent_messages": [
                 AgentMessage(
                     sender=self.name,
                     recipient="supervisor",
                     message_type=(MessageType.WARNING if warnings else MessageType.RESPONSE),
-                    content=result.output.output.summary,
+                    content=findings.output.summary,
                     evidence_ids=[item.evidence_id for item in evidence],
                 )
             ],

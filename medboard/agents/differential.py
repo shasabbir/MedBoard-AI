@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from medboard.agents.base import BaseAgent, StateUpdate
+from medboard.agents.base import BaseAgent, StateUpdate, ground_agent_output
 from medboard.graph.state import MedicalCaseState
 from medboard.models import (
     AgentMessage,
@@ -169,7 +169,7 @@ class DifferentialAgent(BaseAgent):
                 ),
             ),
         )
-        validated_diagnoses = result.output.diagnoses
+        validated_diagnoses = _ground_diagnoses(result.output.diagnoses, evidence)
         referenced_evidence = _unique(
             [
                 item
@@ -179,6 +179,26 @@ class DifferentialAgent(BaseAgent):
         )
         missing_items = _unique(
             [item for diagnosis in validated_diagnoses for item in diagnosis.missing_evidence]
+        )
+        grounded_claims = [
+            Claim(
+                agent=self.name,
+                statement=f"{diagnosis.hypothesis} should remain under consideration.",
+                evidence_ids=diagnosis.supporting_evidence_ids,
+                contradicting_evidence_ids=diagnosis.contradicting_evidence_ids,
+                confidence=diagnosis.confidence,
+            )
+            for diagnosis in validated_diagnoses
+        ]
+        analysis = result.output.model_copy(
+            update={
+                "diagnoses": validated_diagnoses,
+                "output": ground_agent_output(
+                    result.output.output,
+                    agent=self.name,
+                    claims=grounded_claims,
+                ),
+            }
         )
         prior_differential_questions = sum(
             question.asked_by == self.name for question in state["evidence_questions"]
@@ -198,8 +218,8 @@ class DifferentialAgent(BaseAgent):
             for index, diagnosis in enumerate(validated_diagnoses, start=1)
         ]
         return {
-            "differential_analysis": result.output,
-            "differential_diagnoses": result.output.diagnoses,
+            "differential_analysis": analysis,
+            "differential_diagnoses": validated_diagnoses,
             "evidence_questions": evidence_questions,
             "missing_information": [
                 MissingInformationRequest(
@@ -216,7 +236,7 @@ class DifferentialAgent(BaseAgent):
                     sender=self.name,
                     recipient="supervisor",
                     message_type=MessageType.CLAIM,
-                    content=result.output.output.summary,
+                    content=analysis.output.summary,
                     evidence_ids=referenced_evidence,
                 )
             ],
@@ -267,6 +287,40 @@ def _deduplicate_hypotheses(
     diagnoses: list[DifferentialDiagnosis],
 ) -> list[DifferentialDiagnosis]:
     return list({item.hypothesis_id: item for item in diagnoses}.values())
+
+
+def _ground_diagnoses(
+    diagnoses: list[DifferentialDiagnosis], evidence: list[Evidence]
+) -> list[DifferentialDiagnosis]:
+    """Canonicalize model identities and discard unknown evidence links."""
+    known_evidence = {item.evidence_id for item in evidence}
+    grounded: list[DifferentialDiagnosis] = []
+    used_ids: set[str] = set()
+    for index, diagnosis in enumerate(diagnoses, start=1):
+        hypothesis_id = diagnosis.hypothesis_id
+        if not hypothesis_id.startswith("HYP-") or hypothesis_id in used_ids:
+            hypothesis_id = f"HYP-MODEL-{index:03d}"
+        used_ids.add(hypothesis_id)
+        supporting = [
+            item for item in diagnosis.supporting_evidence_ids if item in known_evidence
+        ]
+        contradicting = [
+            item
+            for item in diagnosis.contradicting_evidence_ids
+            if item in known_evidence and item not in supporting
+        ]
+        grounded.append(
+            DifferentialDiagnosis.model_validate(
+                {
+                    **diagnosis.model_dump(),
+                    "hypothesis_id": hypothesis_id,
+                    "supporting_evidence_ids": supporting,
+                    "contradicting_evidence_ids": contradicting,
+                    "proposed_by": "differential",
+                }
+            )
+        )
+    return grounded
 
 
 def _unique(values: list[str]) -> list[str]:
