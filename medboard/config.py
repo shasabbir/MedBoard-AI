@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     app_name: str = "MedBoard AI"
     app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
     demo_mode: bool = True
+    care_delivery_enabled: bool = False
+    operating_organization: str = "unconfigured"
+    deployment_jurisdiction: str = "unconfigured"
+    care_policy_version: str = "phase-11-disabled"
     log_level: str = "INFO"
 
     llm_provider: LLMProvider = LLMProvider.OPENAI
@@ -78,9 +82,24 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of: {allowed_values}")
         return normalized
 
+    @field_validator(
+        "operating_organization", "deployment_jurisdiction", "care_policy_version"
+    )
+    @classmethod
+    def require_nonempty_care_context(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("care-delivery context settings cannot be empty")
+        return normalized
+
     @model_validator(mode="after")
     def validate_live_provider_configuration(self) -> Self:
         """Require credentials and a model only when live mode is enabled."""
+        if self.care_delivery_enabled:
+            raise ValueError(
+                "CARE_DELIVERY_ENABLED cannot be enabled during the Phase 11 safety "
+                "foundation; clinician authorization and live-use gates are not implemented"
+            )
         if self.demo_mode:
             return self
 
@@ -98,6 +117,11 @@ class Settings(BaseSettings):
     def mode_label(self) -> str:
         """Return the user-facing execution mode label."""
         return "DEMO" if self.demo_mode else "LIVE LLM"
+
+    @property
+    def care_delivery_status(self) -> str:
+        """Expose the fail-closed care-delivery feature state."""
+        return "ENABLED" if self.care_delivery_enabled else "DISABLED"
 
     def ensure_runtime_directories(self) -> None:
         """Create only the local directories needed by application runtime state."""

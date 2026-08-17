@@ -61,6 +61,22 @@ def render_settings(settings: Settings) -> None:
     st.table(
         [
             {"Setting": "Mode", "Value": settings.mode_label},
+            {
+                "Setting": "Care delivery",
+                "Value": settings.care_delivery_status,
+            },
+            {
+                "Setting": "Operating organization",
+                "Value": settings.operating_organization,
+            },
+            {
+                "Setting": "Deployment jurisdiction",
+                "Value": settings.deployment_jurisdiction,
+            },
+            {
+                "Setting": "Care policy version",
+                "Value": settings.care_policy_version,
+            },
             {"Setting": "Provider", "Value": settings.llm_provider.value},
             {"Setting": "Model", "Value": _model_label(settings)},
             {"Setting": "Maximum critic revisions", "Value": settings.max_revisions},

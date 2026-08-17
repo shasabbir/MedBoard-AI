@@ -114,6 +114,10 @@ Configuration is environment-driven; see [.env.example](.env.example).
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `DEMO_MODE` | Use deterministic offline provider | `true` |
+| `CARE_DELIVERY_ENABLED` | Fail-closed future gate; Phase 11 rejects `true` | `false` |
+| `OPERATING_ORGANIZATION` | Future policy context; not an authorization source | `unconfigured` |
+| `DEPLOYMENT_JURISDICTION` | Future jurisdiction policy context | `unconfigured` |
+| `CARE_POLICY_VERSION` | Version label for the disabled future policy | `phase-11-disabled` |
 | `LLM_PROVIDER` | Provider selection (`openai` or `gemini`) | `openai` |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | OpenAI live-mode credentials/model | empty |
 | `GOOGLE_API_KEY`, `GEMINI_MODEL` | Gemini live-mode credentials/model | empty |
@@ -223,6 +227,8 @@ The next product direction is a clinician-supervised remote consultation workflo
 care plans, medication options, and patient instructions, but release them only after verified,
 version-bound clinician authorization and deterministic safety checks. The master implementation
 instructions, phased roadmap, and live-use gates are defined in [plan.md](plan.md#88-target-product-boundary-and-intended-use).
+The implemented Phase 11 boundary, role matrix, lifecycle, and hazard analysis are documented in
+[docs/CARE_DELIVERY_SAFETY.md](docs/CARE_DELIVERY_SAFETY.md).
 
 - Implement authenticated clinician identity, role/scope policy, and immutable authorization.
 - Add structured care-plan and medication drafts with deterministic medication safety checks.

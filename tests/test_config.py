@@ -15,6 +15,22 @@ def test_default_settings_use_safe_demo_mode() -> None:
     assert settings.mode_label == "DEMO"
     assert settings.llm_provider is LLMProvider.OPENAI
     assert settings.app_env is AppEnvironment.DEVELOPMENT
+    assert settings.care_delivery_enabled is False
+    assert settings.care_delivery_status == "DISABLED"
+
+
+def test_care_delivery_feature_fails_closed_during_safety_foundation() -> None:
+    with pytest.raises(ValidationError, match="CARE_DELIVERY_ENABLED cannot be enabled"):
+        Settings(_env_file=None, care_delivery_enabled=True)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["operating_organization", "deployment_jurisdiction", "care_policy_version"],
+)
+def test_care_context_settings_cannot_be_empty(field_name: str) -> None:
+    with pytest.raises(ValidationError, match="cannot be empty"):
+        Settings(_env_file=None, **{field_name: "  "})
 
 
 @pytest.mark.parametrize(

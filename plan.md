@@ -3675,6 +3675,10 @@ Deliver the intended-use statement, exclusions, hazard analysis, role matrix, st
 specification, deployment jurisdiction configuration, and the contracts/invariants in Section 90.
 Keep all treatment features disabled behind a server-side feature flag.
 
+**Implementation status:** complete. The feature gate is fail-closed, the future contracts and
+lifecycle validator are isolated from the educational graph, and the safety foundation is recorded
+in `docs/CARE_DELIVERY_SAFETY.md`. Care delivery remains disabled.
+
 ## Phase 12 — Verified Identity and Authorization
 
 Implement patient/clinician identity references, organization tenancy, authentication integration,

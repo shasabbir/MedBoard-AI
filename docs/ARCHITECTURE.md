@@ -40,3 +40,13 @@ shows status, execution time, model calls, tool calls, approximate demo tokens, 
 logs, evidence sources, and failure details. Safety language appears before case execution and
 inside every approved report. Demo, OpenAI, and Gemini providers share the graph contract;
 live providers return the same Pydantic output types via structured-output APIs.
+
+## Future care-delivery boundary
+
+The clinician-supervised care-delivery roadmap is intentionally outside the current graph.
+Phase 11 adds fail-closed configuration, strict future artifact contracts, authorization-bound
+content hashing, and lifecycle validation without enabling treatment or patient delivery. The
+intended use, exclusions, role matrix, initial hazard analysis, and transition rules are maintained
+in [CARE_DELIVERY_SAFETY.md](CARE_DELIVERY_SAFETY.md). The generic Human Review checkpoint remains
+educational report approval and must not be treated as clinician authentication or prescribing
+authorization.
