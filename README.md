@@ -7,6 +7,10 @@ synthetic case using structured evidence, conditional specialist routing, local 
 red-team criticism, durable memory, and a real human approval checkpoint. It is not a
 diagnostic service, autonomous doctor, or production medical device.
 
+> **Current scope:** this repository does not authenticate clinicians or issue treatment,
+> prescriptions, or patient instructions. The human checkpoint is workflow approval, not
+> verified clinical authorization. Do not use the current build for real patient care.
+
 ![MedBoard multi-agent architecture](diagram_final.png)
 
 ## Why multi-agent?
@@ -215,6 +219,13 @@ tests/                    Unit, integration, persistence, UI, and evaluation tes
 
 ## Future work
 
-- Add externally reviewed benchmark cases, repeated trials, and clinician-led error analysis.
-- Add provider-specific cancellation testing and similar-case retrieval as secondary evidence.
-- Export clinician-approved reports and audit bundles in privacy-preserving formats.
+The next product direction is a clinician-supervised remote consultation workflow that can draft
+care plans, medication options, and patient instructions, but release them only after verified,
+version-bound clinician authorization and deterministic safety checks. The master implementation
+instructions, phased roadmap, and live-use gates are defined in [plan.md](plan.md#88-target-product-boundary-and-intended-use).
+
+- Implement authenticated clinician identity, role/scope policy, and immutable authorization.
+- Add structured care-plan and medication drafts with deterministic medication safety checks.
+- Separate internal clinical drafts from authorized, plain-language patient instructions.
+- Add priority queues, safe workload limits, delivery, acknowledgement, and follow-up escalation.
+- Complete clinician-led safety evaluation, privacy/security review, and a supervised pilot gate.
