@@ -16,6 +16,7 @@ from medboard.models import (
     DifferentialAnalysis,
     DifferentialDiagnosis,
     MedicalCaseInput,
+    SpecialistOpinion,
     TokenUsage,
 )
 from medboard.providers import DemoModelProvider, ProviderResult
@@ -74,6 +75,34 @@ class AlternateDifferentialProvider(DemoModelProvider):
         )
 
 
+class DisplayNameSpecialistProvider(DemoModelProvider):
+    """Emulate a live model returning a human-readable specialist label."""
+
+    def generate(
+        self,
+        *,
+        agent: str,
+        prompt: str,
+        context: object,
+        response_model: type[OutputT],
+        demo_factory: Callable[[], OutputT],
+    ) -> ProviderResult[OutputT]:
+        result = super().generate(
+            agent=agent,
+            prompt=prompt,
+            context=context,
+            response_model=response_model,
+            demo_factory=demo_factory,
+        )
+        if agent != "cardiology" or not isinstance(result.output, SpecialistOpinion):
+            return result
+        display_output = result.output.model_copy(update={"specialist": "Cardiology"})
+        return ProviderResult(
+            output=response_model.model_validate(display_output.model_dump()),
+            usage=result.usage,
+        )
+
+
 def load_case(name: str) -> MedicalCaseInput:
     path = Path("data/demo_cases") / f"{name}.json"
     return MedicalCaseInput.model_validate_json(path.read_text(encoding="utf-8"))
@@ -104,6 +133,19 @@ def test_router_selects_only_evidence_justified_specialists(
     assert snapshot.routing_decisions[-1].selected_specialists == expected_specialists
     assert set(snapshot.routing_decisions[-1].reasons) == set(expected_specialists)
     assert not (set(excluded_specialists) & set(snapshot.selected_specialists))
+
+
+def test_specialist_node_restores_canonical_identity_from_live_model_output() -> None:
+    workflow = build_collaboration_workflow(DisplayNameSpecialistProvider())
+
+    result = workflow.invoke(
+        create_initial_state(load_case("cardiac"), run_id="RUN-SPECIALIST-IDENTITY")
+    )
+    snapshot = validate_state(result)
+
+    assert snapshot.selected_specialists == ["cardiology"]
+    assert [item.specialist for item in snapshot.specialist_opinions] == ["cardiology"]
+    assert any(message.sender == "cardiology" for message in snapshot.agent_messages)
 
 
 def test_duplicate_missing_information_is_aggregated_across_agents() -> None:

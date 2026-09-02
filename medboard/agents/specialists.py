@@ -38,7 +38,10 @@ class BaseSpecialistAgent(BaseAgent):
             response_model=SpecialistOpinion,
             demo_factory=lambda: self.build_opinion(state),
         )
-        opinion = result.output
+        # The graph node is the authority for specialist identity. Live models may
+        # return a display label (for example, ``Cardiology``) even though routing
+        # and state integrity use canonical node IDs such as ``cardiology``.
+        opinion = result.output.model_copy(update={"specialist": self.name})
         messages = [
             AgentMessage(
                 sender=self.name,
