@@ -461,6 +461,13 @@ class EvidenceRetrievalAnalysis(ContractModel):
     output: AgentOutput
 
 
+class EvidenceRetrievalSummary(ContractModel):
+    """Model-authored retrieval summary without altering deterministic chunk citations."""
+
+    summary: NonEmptyString
+    warnings: list[NonEmptyString] = Field(default_factory=list)
+
+
 class Contradiction(ContractModel):
     contradiction_id: str = Field(default_factory=lambda: new_id("CON"), frozen=True)
     topic: NonEmptyString
@@ -553,6 +560,12 @@ class HumanReviewCommand(ContractModel):
         if self.action is HumanAction.RETRY_FAILED_AGENT and not self.failed_agent:
             raise ValueError("retry_failed_agent requires failed_agent")
         return self
+
+
+class ReportDraft(ContractModel):
+    """Model-authored analytical limitations before deterministic report assembly."""
+
+    limitations: list[NonEmptyString] = Field(default_factory=list)
 
 
 class FinalReport(ContractModel):

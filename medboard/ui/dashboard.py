@@ -54,11 +54,15 @@ def run_dashboard() -> None:
         "replacement for a qualified healthcare professional."
     )
 
+    if pending_page := st.session_state.pop("pending_nav_view", None):
+        st.session_state.nav_view = pending_page
+
     with st.sidebar:
         st.markdown("## 🩺 MedBoard AI")
         page = st.radio(
             "View",
             ["New case", "Saved cases", "Knowledge base", "System logs", "Settings"],
+            key="nav_view",
         )
         st.divider()
         st.caption("RUNTIME")
@@ -71,6 +75,7 @@ def run_dashboard() -> None:
         selected_run = render_memory(runtime.case_memory, runtime.service)
         if selected_run:
             st.session_state.active_run_id = selected_run
+            st.session_state.pending_nav_view = "New case"
             st.rerun()
         return
     if page == "Knowledge base":
@@ -108,6 +113,14 @@ def run_dashboard() -> None:
         return
 
     _metrics(snapshot)
+    if notice := st.session_state.pop("human_review_notice", None):
+        level, message = notice
+        if level == "success":
+            st.success(message)
+        elif level == "error":
+            st.error(message)
+        else:
+            st.info(message)
     tabs = st.tabs(
         [
             "Workflow",
@@ -147,10 +160,10 @@ def run_dashboard() -> None:
                 interrupted=interrupted,
             )
             st.session_state.active_run_id = resumed_snapshot.run_id
-            st.success(
-                "Workflow paused for review again."
-                if interrupted
-                else "Human decision applied and run completed."
+            st.session_state.human_review_notice = _human_review_notice(
+                resumed_snapshot,
+                action=command.action.value,
+                interrupted=interrupted,
             )
             st.rerun()
     with tabs[6]:
@@ -255,3 +268,42 @@ def _styles() -> None:
 def _tool_call_count(details: Mapping[str, object]) -> int:
     value = details.get("call_count", 1)
     return value if isinstance(value, int) else 1
+
+
+def _human_review_notice(
+    snapshot: MedicalCaseSnapshot, *, action: str, interrupted: bool
+) -> tuple[str, str]:
+    if snapshot.final_report is not None:
+        return (
+            "success",
+            "Human approval applied and final report generated. Open the Report tab to view it.",
+        )
+    if not interrupted and snapshot.human_review.status.value == "rejected":
+        return (
+            "info",
+            "Analysis rejected and retained in audit history. No final report was generated.",
+        )
+    unresolved_blocking = [
+        error
+        for error in snapshot.errors
+        if not error.resolved and error.agent in {"reporter", "risk"}
+    ]
+    if interrupted and (action == "approve" or unresolved_blocking):
+        failed_names = ", ".join(
+            dict.fromkeys(error.agent or "unknown" for error in unresolved_blocking)
+        )
+        detail = (
+            f"Unresolved errors in: {failed_names}. "
+            if failed_names
+            else ""
+        )
+        return (
+            "error",
+            f"Final report was not generated. {detail}"
+            "Open the Human review tab to retry the failed agent or inspect Trace.",
+        )
+    return (
+        "info",
+        "Updated analysis completed and paused for human review again. "
+        "Open the Human review tab to approve or take further action.",
+    )

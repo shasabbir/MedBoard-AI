@@ -143,3 +143,53 @@ def test_dashboard_secondary_pages_render() -> None:
     app = navigation.set_value("Settings").run(timeout=20)
     assert not app.exception
     assert any(header.value == "Runtime settings" for header in app.header)
+
+
+def test_dashboard_surfaces_reporter_failure_instead_of_silent_loopback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from medboard.agents.reporter import ReporterAgent
+    from medboard.models import AgentError, Severity
+    from medboard.ui.dashboard import _human_review_notice
+
+    def failing_analyze(self, state):
+        del self, state
+        raise ConnectionError("simulated reporter outage")
+
+    monkeypatch.setattr(ReporterAgent, "analyze", failing_analyze)
+    app = AppTest.from_file(APP_PATH).run(timeout=20)
+    start = next(
+        button for button in app.button if button.label == "Start multi-agent investigation"
+    )
+    app = start.click().run(timeout=30)
+    submit = next(
+        button for button in app.button if button.label == "Submit human decision"
+    )
+    app = submit.click().run(timeout=30)
+
+    assert not app.exception
+    assert any("Final report was not generated" in err.value for err in app.error)
+    assert any("Unresolved agent failure(s)" in err.value for err in app.error)
+    assert any("Report generation failed" in err.value for err in app.error)
+
+    failed_snapshot = validate_state(
+        create_initial_state(
+            MedicalCaseInput(chief_complaint="Test"), run_id="RUN-NOTICE"
+        )
+    ).model_copy(
+        update={
+            "errors": [
+                AgentError(
+                    agent="reporter",
+                    error_type="ConnectionError",
+                    message="outage",
+                    severity=Severity.HIGH,
+                )
+            ]
+        }
+    )
+    level, message = _human_review_notice(
+        failed_snapshot, action="approve", interrupted=True
+    )
+    assert level == "error"
+    assert "reporter" in message

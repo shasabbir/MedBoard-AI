@@ -26,7 +26,25 @@ def render_report(snapshot: MedicalCaseSnapshot) -> None:
     st.subheader("Final report")
     report = snapshot.final_report
     if report is None:
-        st.info("A final report is generated only after explicit human approval.")
+        blocking_errors = [
+            error
+            for error in snapshot.errors
+            if not error.resolved and error.agent in {"reporter", "risk"}
+        ]
+        if blocking_errors:
+            summary = "; ".join(
+                f"{error.agent}: {error.message}" for error in blocking_errors
+            )
+            st.error(
+                f"Report generation failed ({summary}). "
+                "Use 'retry_failed_agent' in the Human review tab to retry."
+            )
+        elif snapshot.human_review.status.value == "rejected":
+            st.info(
+                "Analysis was rejected during human review, so no final report was generated."
+            )
+        else:
+            st.info("A final report is generated only after explicit human approval.")
         return
 
     st.markdown("### MedBoard AI Case Review")

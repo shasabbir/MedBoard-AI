@@ -118,3 +118,54 @@ def test_live_critic_response_cannot_bypass_revision_limit() -> None:
     assert isinstance(review, CriticReview)
     assert review.decision is CriticDecision.ACCEPT
     assert any("Revision limit reached" in item for item in review.problems)
+
+
+def test_critic_assigns_unique_review_ids_when_live_model_reuses_same_id(
+    tmp_path: Path,
+) -> None:
+    class StaticReviewIdProvider(DemoModelProvider):
+        def generate(self, **kwargs):
+            if kwargs["agent"] != "critic":
+                return super().generate(**kwargs)
+            revision_count = kwargs["context"]["revision_count"]
+            decision = (
+                CriticDecision.REVISE if revision_count == 0 else CriticDecision.ACCEPT
+            )
+            problems = (
+                ["Needs differential revision."] if revision_count == 0 else []
+            )
+            return ProviderResult(
+                output=CriticReview(
+                    review_id="REV-CRITIC-001",
+                    decision=decision,
+                    problems=problems,
+                    severity=Severity.MEDIUM,
+                ),
+                usage=TokenUsage(
+                    agent="critic",
+                    provider="test",
+                    model="static-review-id",
+                ),
+            )
+
+    store = KnowledgeStore(tmp_path / "chroma-static-id")
+    store.ingest_directory(Path("data/knowledge"))
+    workflow = build_collaboration_workflow(
+        StaticReviewIdProvider(), store, max_revisions=2
+    )
+    case = MedicalCaseInput(
+        case_id="CASE-STATIC-CRT",
+        chief_complaint="Routine fatigue",
+        symptoms=["tiredness"],
+    )
+
+    snapshot = validate_state(
+        workflow.invoke(create_initial_state(case, run_id="RUN-STATIC-CRT"))
+    )
+
+    assert snapshot.revision_count == 1
+    assert len(snapshot.critic_reviews) == 2
+    assert len({review.review_id for review in snapshot.critic_reviews}) == 2
+    assert all(
+        review.review_id.startswith("CRT-") for review in snapshot.critic_reviews
+    )

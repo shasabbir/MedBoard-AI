@@ -277,3 +277,82 @@ def test_router_can_select_no_specialist_and_still_complete() -> None:
     assert snapshot.specialist_opinions == []
     assert len(snapshot.differential_diagnoses) == 2
     assert snapshot.execution_trace[-1].event_type.value == "workflow_completed"
+
+
+def test_specialist_grounds_hypothesis_names_and_increments_question_ids() -> None:
+    from medboard.agents.specialists import CardiologyAgent
+    from medboard.models import Evidence, EvidenceQuestion, EvidenceType
+
+    class DescriptiveHypothesisSpecialistProvider(DemoModelProvider):
+        def generate(self, **kwargs):
+            if kwargs["agent"] != "cardiology":
+                return super().generate(**kwargs)
+            opinion = SpecialistOpinion(
+                opinion_id="OPN-STATIC-001",
+                specialist="Cardiology",
+                assessment="Cardiac review completed.",
+                supported_hypotheses=["Acute coronary syndrome consideration", "Invented"],
+                challenged_hypotheses=["Pulmonary or other cardiorespiratory process"],
+                evidence_ids=["EV-SYMPTOM-001", "EV-DOES-NOT-EXIST"],
+                confidence=0.72,
+            )
+            return ProviderResult(
+                output=kwargs["response_model"].model_validate(opinion.model_dump()),
+                usage=TokenUsage(
+                    agent="cardiology",
+                    provider="test",
+                    model="descriptive-specialist",
+                ),
+            )
+
+    case = MedicalCaseInput(
+        case_id="CASE-SPEC-GROUND",
+        chief_complaint="Chest pain",
+        symptoms=["chest pain"],
+    )
+    state = create_initial_state(case, run_id="RUN-SPEC-GROUND")
+    state["evidence"] = [
+        Evidence(
+            evidence_id="EV-SYMPTOM-001",
+            evidence_type=EvidenceType.SYMPTOM,
+            name="chest pain",
+            value=True,
+            source="user_case",
+        )
+    ]
+    state["differential_diagnoses"] = [
+        DifferentialDiagnosis(
+            hypothesis_id="HYP-CORONARY",
+            hypothesis="Acute coronary syndrome consideration",
+            supporting_evidence_ids=["EV-SYMPTOM-001"],
+            confidence=0.64,
+        ),
+        DifferentialDiagnosis(
+            hypothesis_id="HYP-PULMONARY",
+            hypothesis="Pulmonary or other cardiorespiratory process",
+            supporting_evidence_ids=["EV-SYMPTOM-001"],
+            confidence=0.43,
+        ),
+    ]
+    state["evidence_questions"] = [
+        EvidenceQuestion(
+            question_id="Q-CARDIOLOGY-001",
+            asked_by="cardiology",
+            question="Prior cardiology question",
+            hypothesis_ids=["HYP-CORONARY"],
+            evidence_ids=["EV-SYMPTOM-001"],
+        )
+    ]
+
+    update = CardiologyAgent(DescriptiveHypothesisSpecialistProvider()).analyze(state)
+
+    opinion = update["specialist_opinions"][0]
+    assert opinion.specialist == "cardiology"
+    assert opinion.opinion_id.startswith("OPN-")
+    assert opinion.opinion_id != "OPN-STATIC-001"
+    assert opinion.supported_hypotheses == ["HYP-CORONARY"]
+    assert opinion.challenged_hypotheses == ["HYP-PULMONARY"]
+    assert opinion.evidence_ids == ["EV-SYMPTOM-001"]
+    question = update["evidence_questions"][0]
+    assert question.question_id == "Q-CARDIOLOGY-002"
+    assert question.hypothesis_ids == ["HYP-CORONARY", "HYP-PULMONARY"]

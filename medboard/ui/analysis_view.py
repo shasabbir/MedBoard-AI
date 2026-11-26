@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import streamlit as st
 
 from medboard.graph.state import MedicalCaseSnapshot
@@ -83,5 +85,12 @@ def render_rag(snapshot: MedicalCaseSnapshot) -> None:
                 f"Source: {result.source} · Chunk: {result.chunk_id} · "
                 f"Retrieval: {result.retrieval_id}"
             )
-            if result.source_url:
-                st.link_button("Open public source", result.source_url)
+            if _is_web_url(result.source_url):
+                st.link_button("Open public source", result.source_url or "")
+
+
+def _is_web_url(value: str | None) -> bool:
+    if value is None:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)

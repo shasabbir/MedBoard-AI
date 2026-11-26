@@ -10,6 +10,7 @@ from medboard.models import (
     CriticReview,
     MessageType,
     Severity,
+    new_id,
 )
 from medboard.providers import StructuredModelProvider
 
@@ -84,7 +85,7 @@ class CriticAgent(BaseAgent):
             ),
         )
         review = _enforce_revision_limit(
-            result.output,
+            result.output.model_copy(update={"review_id": new_id("CRT")}),
             revision_count=revision_count,
             max_revisions=self.max_revisions,
         )

@@ -13,6 +13,7 @@ from medboard.models import (
     MessageType,
     MissingInformationRequest,
     SpecialistOpinion,
+    new_id,
 )
 
 
@@ -38,10 +39,14 @@ class BaseSpecialistAgent(BaseAgent):
             response_model=SpecialistOpinion,
             demo_factory=lambda: self.build_opinion(state),
         )
-        # The graph node is the authority for specialist identity. Live models may
-        # return a display label (for example, ``Cardiology``) even though routing
-        # and state integrity use canonical node IDs such as ``cardiology``.
-        opinion = result.output.model_copy(update={"specialist": self.name})
+        # The graph node is the authority for specialist identity, and all hypothesis
+        # and evidence references must point to validated IDs already in state.
+        opinion = _ground_specialist_opinion(
+            result.output,
+            specialist=self.name,
+            diagnoses=state["differential_diagnoses"],
+            evidence_ids={item.evidence_id for item in state["evidence"]},
+        )
         messages = [
             AgentMessage(
                 sender=self.name,
@@ -66,9 +71,15 @@ class BaseSpecialistAgent(BaseAgent):
             for hypothesis_id in opinion.challenged_hypotheses
             if hypothesis_id in diagnoses
         )
+        prior_questions = sum(
+            question.asked_by == self.name
+            for question in state.get("evidence_questions", [])
+        )
         return {
             "specialist_opinions": [opinion],
-            "evidence_questions": [self.build_evidence_question(opinion)],
+            "evidence_questions": [
+                self.build_evidence_question(opinion, sequence=prior_questions + 1)
+            ],
             "missing_information": [
                 MissingInformationRequest(
                     information_needed=item,
@@ -82,14 +93,16 @@ class BaseSpecialistAgent(BaseAgent):
             "token_usage": [result.usage],
         }
 
-    def build_evidence_question(self, opinion: SpecialistOpinion) -> EvidenceQuestion:
+    def build_evidence_question(
+        self, opinion: SpecialistOpinion, *, sequence: int = 1
+    ) -> EvidenceQuestion:
         hypothesis_ids = list(
             dict.fromkeys(
                 [*opinion.supported_hypotheses, *opinion.challenged_hypotheses]
             )
         )
         return EvidenceQuestion(
-            question_id=f"Q-{self.name.upper().replace('_', '-')}-001",
+            question_id=f"Q-{self.name.upper().replace('_', '-')}-{sequence:03d}",
             asked_by=self.name,
             question=self.specialist_question(),
             hypothesis_ids=hypothesis_ids,
@@ -241,3 +254,43 @@ def _evidence_ids(
         if item.name.casefold() in names
         and (status is None or item.metadata.get("status") == status)
     ]
+
+
+def _ground_specialist_opinion(
+    opinion: SpecialistOpinion,
+    *,
+    specialist: str,
+    diagnoses: list[DifferentialDiagnosis],
+    evidence_ids: set[str],
+) -> SpecialistOpinion:
+    """Resolve model-supplied hypothesis and evidence references to known state IDs."""
+    by_id = {item.hypothesis_id: item.hypothesis_id for item in diagnoses}
+    by_name = {item.hypothesis.casefold(): item.hypothesis_id for item in diagnoses}
+
+    def resolve_hypotheses(values: list[str]) -> list[str]:
+        resolved: list[str] = []
+        for value in values:
+            canonical = by_id.get(value) or by_name.get(value.strip().casefold())
+            if canonical and canonical not in resolved:
+                resolved.append(canonical)
+        return resolved
+
+    supported = resolve_hypotheses(opinion.supported_hypotheses)
+    supported_set = set(supported)
+    challenged = [
+        item
+        for item in resolve_hypotheses(opinion.challenged_hypotheses)
+        if item not in supported_set
+    ]
+    grounded_evidence = list(
+        dict.fromkeys(item for item in opinion.evidence_ids if item in evidence_ids)
+    )
+    return opinion.model_copy(
+        update={
+            "opinion_id": new_id("OPN"),
+            "specialist": specialist,
+            "supported_hypotheses": supported,
+            "challenged_hypotheses": challenged,
+            "evidence_ids": grounded_evidence,
+        }
+    )

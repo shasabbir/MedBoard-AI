@@ -17,8 +17,8 @@ These are deterministic offline-demo results. The single-pass configuration is a
 | Configuration | Mean approximate tokens | Mean agent calls | Mean revisions |
 | --- | ---: | ---: | ---: |
 | single_pass_proxy | 148.4 | 1.0 | 0.0 |
-| multi_agent_no_critic | 2768.8 | 7.8 | 0.0 |
-| full_medboard | 3000.6 | 10.2 | 0.4 |
+| multi_agent_no_critic | 1355.0 | 7.8 | 0.0 |
+| full_medboard | 1586.8 | 10.2 | 0.4 |
 
 ## RAG retrieval
 

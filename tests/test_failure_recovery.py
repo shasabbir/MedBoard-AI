@@ -369,3 +369,92 @@ def test_successful_manual_retry_resolves_previous_agent_error() -> None:
     resolved = errors.value[0]
     assert resolved.resolved is True
     assert resolved.resolution == "Manual retry completed successfully."
+
+
+def test_reporter_with_gemini_provider_succeeds_without_model_authored_disclaimer() -> None:
+    import json
+    from types import SimpleNamespace
+    from medboard.models import REPORT_DISCLAIMER
+    from medboard.providers import GeminiModelProvider
+
+    def create(**kwargs: object) -> object:
+        del kwargs
+        payload = json.dumps({"limitations": ["Additional clinician follow-up suggested."]})
+        return SimpleNamespace(
+            steps=[
+                SimpleNamespace(
+                    type="model_output",
+                    content=[SimpleNamespace(type="text", text=payload)],
+                )
+            ],
+            usage=SimpleNamespace(total_input_tokens=40, total_output_tokens=15),
+        )
+
+    client = SimpleNamespace(interactions=SimpleNamespace(create=create))
+    provider = GeminiModelProvider("test-key", "gemini-test", client=client)
+    case = MedicalCaseInput(chief_complaint="Routine fatigue review")
+    state = create_initial_state(case, run_id="RUN-GEMINI-REPORTER")
+    state["human_review"] = HumanReview(status=HumanStatus.APPROVED)
+    state["triage_result"] = TriageResult(
+        triage_level=TriageLevel.ROUTINE,
+        reasoning="No deterministic red flag was triggered.",
+        recommended_escalation="Use the normal clinical review pathway.",
+    )
+
+    update = ReporterAgent(provider, max_retries=0).analyze(state)
+    state.update(update)
+    snapshot = validate_state(state)
+
+    assert snapshot.final_report is not None
+    assert snapshot.final_report.disclaimer == REPORT_DISCLAIMER
+    assert snapshot.final_report.limitations == ["Additional clinician follow-up suggested."]
+
+
+def test_evidence_agent_preserves_deterministic_chunks_with_gemini_provider(
+    tmp_path: Path,
+) -> None:
+    import json
+    from types import SimpleNamespace
+    from medboard.agents.evidence import EvidenceRetrievalAgent
+    from medboard.models import EvidenceQuestion
+    from medboard.providers import GeminiModelProvider
+
+    store = KnowledgeStore(tmp_path / "chroma")
+    store.ingest_directory(Path("data/knowledge"))
+
+    def create(**kwargs: object) -> object:
+        del kwargs
+        payload = json.dumps({"summary": "Retrieved matching stroke summary.", "warnings": []})
+        return SimpleNamespace(
+            steps=[
+                SimpleNamespace(
+                    type="model_output",
+                    content=[SimpleNamespace(type="text", text=payload)],
+                )
+            ],
+            usage=SimpleNamespace(total_input_tokens=30, total_output_tokens=12),
+        )
+
+    client = SimpleNamespace(interactions=SimpleNamespace(create=create))
+    provider = GeminiModelProvider("test-key", "gemini-test", client=client)
+    state = create_initial_state(
+        MedicalCaseInput(chief_complaint="Stroke check"), run_id="RUN-GEMINI-RAG"
+    )
+    state["evidence_questions"] = [
+        EvidenceQuestion(
+            question_id="Q-TEST-001",
+            asked_by="neurology",
+            question="sudden unilateral weakness stroke urgent assessment",
+        )
+    ]
+
+    update = EvidenceRetrievalAgent(provider, store, top_k=2, max_retries=0).analyze(state)
+    state.update(update)
+    snapshot = validate_state(state)
+
+    assert snapshot.retrieved_evidence
+    assert snapshot.evidence_retrieval_analysis is not None
+    assert snapshot.evidence_retrieval_analysis.results == snapshot.retrieved_evidence
+    assert snapshot.evidence_retrieval_analysis.output.summary == (
+        "Retrieved matching stroke summary."
+    )

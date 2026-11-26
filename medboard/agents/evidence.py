@@ -9,6 +9,7 @@ from medboard.models import (
     AgentOutput,
     AgentStatus,
     EvidenceRetrievalAnalysis,
+    EvidenceRetrievalSummary,
     MessageType,
     TraceEvent,
     TraceEventType,
@@ -43,9 +44,14 @@ class EvidenceRetrievalAgent(BaseAgent):
                 top_k=self.top_k,
             )
         ]
+        default_warnings = (
+            ["No knowledge chunks were available for retrieval."]
+            if not results
+            else []
+        )
         prompt = (
-            "Interpret the retrieved source chunks for the explicit clinical questions. "
-            "Retain source metadata and do not invent evidence."
+            "Summarize the retrieved source chunks for the explicit clinical questions. "
+            "Do not invent evidence, sources, or identifiers."
         )
         provider_result = self.provider.generate(
             agent=self.name,
@@ -54,33 +60,37 @@ class EvidenceRetrievalAgent(BaseAgent):
                 "clinical_questions": questions,
                 "retrieved_source_chunks": results,
             },
-            response_model=EvidenceRetrievalAnalysis,
-            demo_factory=lambda: EvidenceRetrievalAnalysis(
-                results=results,
-                output=AgentOutput(
-                    agent=self.name,
-                    status=AgentStatus.COMPLETED,
-                    summary=(
-                        f"Retrieved {len(results)} source-attributed chunks for "
-                        f"{len(questions)} questions."
-                    ),
-                    warnings=(
-                        ["No knowledge chunks were available for retrieval."]
-                        if not results
-                        else []
-                    ),
+            response_model=EvidenceRetrievalSummary,
+            demo_factory=lambda: EvidenceRetrievalSummary(
+                summary=(
+                    f"Retrieved {len(results)} source-attributed chunks for "
+                    f"{len(questions)} questions."
+                ),
+                warnings=default_warnings,
+            ),
+        )
+        analysis = EvidenceRetrievalAnalysis(
+            results=results,
+            output=AgentOutput(
+                agent=self.name,
+                status=AgentStatus.COMPLETED,
+                summary=provider_result.output.summary,
+                warnings=list(
+                    dict.fromkeys(
+                        [*default_warnings, *provider_result.output.warnings]
+                    )
                 ),
             ),
         )
         return {
-            "retrieved_evidence": provider_result.output.results,
-            "evidence_retrieval_analysis": provider_result.output,
+            "retrieved_evidence": results,
+            "evidence_retrieval_analysis": analysis,
             "agent_messages": [
                 AgentMessage(
                     sender=self.name,
                     recipient="supervisor",
                     message_type=(MessageType.RESPONSE if results else MessageType.WARNING),
-                    content=provider_result.output.output.summary,
+                    content=analysis.output.summary,
                     retrieval_ids=[item.retrieval_id for item in results],
                 )
             ],

@@ -207,7 +207,7 @@
         "triage_accuracy": 1.0,
         "missing_information_recall": 1.0,
         "unsupported_claim_rate": 0.0,
-        "mean_tokens": 2768.8,
+        "mean_tokens": 1355.0,
         "mean_agent_calls": 7.8,
         "mean_revisions": 0.0
       },
@@ -244,7 +244,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 3041,
+          "tokens": 1511,
           "agent_calls": 8,
           "revisions": 0
         },
@@ -280,7 +280,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 2902,
+          "tokens": 1409,
           "agent_calls": 8,
           "revisions": 0
         },
@@ -316,7 +316,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 2862,
+          "tokens": 1352,
           "agent_calls": 8,
           "revisions": 0
         },
@@ -354,7 +354,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 2919,
+          "tokens": 1391,
           "agent_calls": 8,
           "revisions": 0
         },
@@ -386,7 +386,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 2120,
+          "tokens": 1112,
           "agent_calls": 7,
           "revisions": 0
         }
@@ -407,7 +407,7 @@
         "triage_accuracy": 1.0,
         "missing_information_recall": 1.0,
         "unsupported_claim_rate": 0.0,
-        "mean_tokens": 3000.6,
+        "mean_tokens": 1586.8,
         "mean_agent_calls": 10.2,
         "mean_revisions": 0.4
       },
@@ -444,7 +444,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 3529,
+          "tokens": 1999,
           "agent_calls": 12,
           "revisions": 2
         },
@@ -480,7 +480,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 3076,
+          "tokens": 1583,
           "agent_calls": 10,
           "revisions": 0
         },
@@ -516,7 +516,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 3036,
+          "tokens": 1526,
           "agent_calls": 10,
           "revisions": 0
         },
@@ -554,7 +554,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 3091,
+          "tokens": 1563,
           "agent_calls": 10,
           "revisions": 0
         },
@@ -586,7 +586,7 @@
           ],
           "unsupported_claims": 0,
           "total_claims": 2,
-          "tokens": 2271,
+          "tokens": 1263,
           "agent_calls": 9,
           "revisions": 0
         }

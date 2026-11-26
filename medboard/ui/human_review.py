@@ -13,6 +13,16 @@ from medboard.models import HumanReviewCommand
 
 def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | None:
     st.subheader("Human / clinician review")
+    unresolved_errors = [error for error in snapshot.errors if not error.resolved]
+    if unresolved_errors:
+        details = "; ".join(
+            f"{error.agent or 'workflow'} ({error.error_type}: {error.message})"
+            for error in unresolved_errors
+        )
+        st.error(
+            "Unresolved agent failure(s) occurred during this run: "
+            f"{details}. Use 'retry_failed_agent' below to recover."
+        )
     if snapshot.human_review.status.value != "waiting_for_human":
         st.info(f"Current human-review status: {snapshot.human_review.status.value}")
         return None
@@ -20,6 +30,11 @@ def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | N
         "This experimental decision-support output requires a qualified healthcare "
         "professional's review."
     )
+    if snapshot.triage_result is None:
+        st.warning(
+            "Risk / triage assessment is missing. Retry the 'risk' agent via "
+            "'retry_failed_agent' before approving so the final report can be generated."
+        )
     if snapshot.triage_result:
         st.metric("Triage level", snapshot.triage_result.triage_level.value.upper())
     action = st.selectbox(
@@ -48,8 +63,8 @@ def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | N
         failed = list(
             dict.fromkeys(
                 error.agent
-                for error in snapshot.errors
-                if error.agent and not error.resolved
+                for error in unresolved_errors
+                if error.agent
             )
         )
         failed_agent = st.selectbox("Failed agent", failed or ["differential"])
@@ -67,6 +82,8 @@ def render_human_review(snapshot: MedicalCaseSnapshot) -> HumanReviewCommand | N
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
                 added_information = parsed
+            else:
+                st.error("Additional information must be a JSON object.")
         except json.JSONDecodeError:
             st.error("Additional information must be valid JSON.")
     if not st.button("Submit human decision", type="primary"):
